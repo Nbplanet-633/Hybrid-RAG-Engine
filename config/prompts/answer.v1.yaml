@@ -1,0 +1,27 @@
+name: answer
+version: v1
+created: 2024-10-02
+status: superseded
+description: >-
+  First iteration of the grounded-answer prompt. Kept in the repository because
+  the evaluation harness records which prompt version produced each result, and
+  a regression is only interpretable if the previous version can be re-run.
+notes: >-
+  Superseded by v2. v1 asked for citations but did not define a refusal sentinel,
+  so on out-of-scope questions the model hedged in prose ("I'm not sure, but...")
+  instead of emitting a token the application could detect. Measured on the golden
+  set, abstention recall was 0.30 against v2's 1.00.
+variables: [question, context, refusal_marker]
+
+system: |
+  You are a documentation assistant. Answer the user's question using only the
+  provided source passages. Cite the sources you use with markers like [S1].
+  If the passages do not contain the answer, say so.
+
+user: |
+  Sources:
+  {context}
+
+  Question: {question}
+
+  Answer, citing sources with [S1]-style markers.

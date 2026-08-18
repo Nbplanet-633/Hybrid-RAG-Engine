@@ -1,0 +1,64 @@
+# Local stack. Two profiles mirroring config/app.yaml:
+#
+#   docker compose up api                      # deterministic, no API key needed
+#   docker compose --profile full up api-full   # sentence-transformers + Claude
+#
+services:
+  api:
+    build:
+      context: .
+      target: runtime
+    image: ask-my-docs:latest
+    environment:
+      ASKMYDOCS_PROFILE: offline
+      ASKMYDOCS_STORAGE_DIR: /data/storage
+    ports:
+      - "8000:8000"
+    volumes:
+      # Named volume so the index survives container replacement.
+      - index-data:/data
+      # Mount the corpus read-only: documents are input, not something the
+      # service should be able to modify.
+      - ./data/corpus:/app/data/corpus:ro
+    restart: unless-stopped
+
+  api-full:
+    profiles: ["full"]
+    build:
+      context: .
+      target: runtime
+    image: ask-my-docs:latest
+    environment:
+      ASKMYDOCS_PROFILE: full
+      ASKMYDOCS_STORAGE_DIR: /data/storage
+      # Required by the full profile's Claude generator. Fails fast if unset.
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:?ANTHROPIC_API_KEY is required for the full profile}
+    ports:
+      - "8001:8000"
+    volumes:
+      - index-data-full:/data
+      - ./data/corpus:/app/data/corpus:ro
+    restart: unless-stopped
+
+  ui:
+    profiles: ["ui"]
+    build:
+      context: .
+      target: runtime
+    image: ask-my-docs:latest
+    command: >-
+      sh -c "pip install --no-cache-dir streamlit &&
+             streamlit run /app/ui/streamlit_app.py --server.port 8501 --server.address 0.0.0.0"
+    environment:
+      ASKMYDOCS_PROFILE: offline
+      ASKMYDOCS_STORAGE_DIR: /data/storage
+    ports:
+      - "8501:8501"
+    volumes:
+      - index-data:/data
+      - ./ui:/app/ui:ro
+      - ./data/corpus:/app/data/corpus:ro
+
+volumes:
+  index-data:
+  index-data-full:

@@ -1,0 +1,153 @@
+# Ask My Docs — application configuration.
+#
+# Values here are the shared baseline; each profile below overrides the parts
+# that differ. Select a profile with ASKMYDOCS_PROFILE or `--profile`.
+#
+#   full    — sentence-transformers + cross-encoder + Claude. Needs models/API key.
+#   offline — hashing embeddings + lexical rerank + extractive answers.
+#             Fully deterministic, no network. This is what CI runs.
+
+# Default to the profile that works on a fresh clone with no model downloads and
+# no API key. Opt into the model-backed stack with ASKMYDOCS_PROFILE=full once
+# `pip install -e '.[full]'` and ANTHROPIC_API_KEY are in place.
+profile: offline
+storage_dir: ./storage
+corpus_dir: ./data/corpus
+
+ingest:
+  # 500-800 token chunks with 100 tokens of overlap.
+  chunk_target_tokens: 600
+  chunk_max_tokens: 800
+  chunk_overlap_tokens: 100
+  min_chunk_tokens: 40
+  # Only break at a heading once the chunk has reached this fraction of the
+  # target size. 1.0 keeps realised chunk sizes inside the 500-800 band; lower
+  # values favour section-pure chunks at the cost of smaller ones. Swept on the
+  # golden set — see the "Chunking trade-off" table in the README.
+  section_break_ratio: 1.0
+  include_globs:
+    - "**/*.md"
+    - "**/*.markdown"
+    - "**/*.txt"
+    - "**/*.pdf"
+    - "**/*.html"
+  exclude_globs:
+    - "**/.*"
+    - "**/node_modules/**"
+
+retrieval:
+  dense_k: 20
+  lexical_k: 20
+  fusion: rrf
+  rrf_k: 60
+  candidates: 24
+
+rerank:
+  enabled: true
+  top_n: 5
+  batch_size: 16
+
+generation:
+  max_tokens: 1024
+  prompt: answer
+  prompt_version: latest
+  prompts_dir: config/prompts
+  timeout_s: 60.0
+
+citations:
+  min_sources: 1
+  require_citations: true
+  refusal_marker: INSUFFICIENT_EVIDENCE
+  refusal_message: >-
+    I can't answer that from the indexed documents. The retrieved passages don't
+    contain enough evidence to support an answer.
+
+api:
+  host: 0.0.0.0
+  port: 8000
+  cors_origins: ["*"]
+
+profiles:
+  full:
+    embedding:
+      provider: sentence-transformers
+      model: sentence-transformers/all-MiniLM-L6-v2
+      batch_size: 32
+      normalize: true
+    vector_store:
+      provider: chroma
+      collection: askmydocs
+    rerank:
+      provider: cross-encoder
+      model: cross-encoder/ms-marco-MiniLM-L-6-v2
+    generation:
+      provider: anthropic
+      model: claude-opus-5
+      effort: medium
+    citations:
+      # Same reranker as full-retrieval, so the same measured floor: below the
+      # observed answerable minimum, rejecting only egregious mismatch.
+      min_top_score: -10.0
+      min_grounding: 0.30
+      # Defence in depth. With Claude generating, the refusal sentinel is the
+      # primary out-of-scope signal, so this is looser than full-retrieval's 0.60
+      # — it only needs to catch questions with no lexical footprint at all.
+      min_question_coverage: 0.45
+
+  # The model-backed retrieval stack with the deterministic generator. Exists so
+  # retrieval quality can be measured against real embeddings and a real
+  # cross-encoder *without* an API key — which isolates the retrieval delta from
+  # generation quality, and is a legitimate deployment for anyone who wants
+  # better recall without paying per query.
+  full-retrieval:
+    storage_dir: ./storage/full-retrieval
+    embedding:
+      provider: sentence-transformers
+      model: sentence-transformers/all-MiniLM-L6-v2
+      batch_size: 32
+      normalize: true
+    vector_store:
+      provider: chroma
+      collection: askmydocs
+    rerank:
+      provider: cross-encoder
+      model: cross-encoder/ms-marco-MiniLM-L-6-v2
+    generation:
+      provider: extractive
+      model: extractive-v1
+    citations:
+      # Cross-encoder logits, not the lexical 0-1 scale. Measured on the golden
+      # set, answerable questions score -9.46 to 8.19 and unanswerable ones
+      # -11.22 to 1.11 — the ranges overlap, so this floor cannot separate them
+      # and is deliberately set *below* the answerable minimum. It rejects only
+      # egregious mismatch; the coverage gate does the out-of-scope work (it holds
+      # abstention recall at 1.000 across every floor tried). Tightening this to
+      # -2.0 buys +0.10 citation precision and costs 3x the false-abstention
+      # rate — see the README sweep.
+      min_top_score: -10.0
+      min_question_coverage: 0.60
+      min_grounding: 0.30
+
+  offline:
+    storage_dir: ./storage/offline
+    embedding:
+      provider: hashing
+      dimension: 512
+      normalize: true
+    vector_store:
+      provider: numpy
+      collection: askmydocs
+    rerank:
+      provider: lexical
+    generation:
+      provider: extractive
+      model: extractive-v1
+    citations:
+      # The lexical reranker returns a normalised 0-1 overlap score. Kept low: it
+      # only rejects egregious mismatches, because a relevance score alone cannot
+      # separate "hard question" from "unanswerable question".
+      min_top_score: 0.10
+      # Without an LLM to judge sufficiency, question coverage is the primary
+      # out-of-scope gate for this profile. Tuned on the golden set.
+      min_question_coverage: 0.60
+      min_grounding: 0.30

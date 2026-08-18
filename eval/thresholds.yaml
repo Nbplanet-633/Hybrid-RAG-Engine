@@ -1,0 +1,87 @@
+# Regression gate thresholds.
+#
+# `min` fails the build when the measured value drops below it; `max` fails when
+# it rises above. Thresholds are per profile because the two stacks are not
+# comparable: the offline profile uses hashed embeddings, lexical reranking, and
+# an extractive generator, so its ceiling is genuinely lower than the full stack's.
+#
+# These are set just under current measured performance — close enough to catch a
+# real regression, with enough headroom that unrelated changes do not produce a
+# red build people learn to ignore. Re-baseline deliberately, in a commit that
+# says why.
+
+# Measured on 105 golden questions (see eval_reports/report-offline.md):
+#   hit@1 0.914 · recall@k 0.989 · MRR 0.950 · abstention recall 1.000
+#   answer F1 0.401 · citation precision 0.772 · false abstention 0.043
+offline:
+  retrieval:
+    hit_at_1: { min: 0.86 }
+    recall_at_k: { min: 0.95 }
+    mrr: { min: 0.90 }
+  answer_quality:
+    # Trivially high for the extractive generator, which quotes source sentences
+    # verbatim. It is a real gate for the `full` profile, and here it guards
+    # against a change that starts emitting text with no basis in the sources.
+    faithfulness: { min: 0.90 }
+    # Moderate by construction: extracted sentences are scored against
+    # hand-written paraphrases, so a perfect extraction still scores ~0.35.
+    answer_f1: { min: 0.36 }
+    citation_precision: { min: 0.72 }
+    correct_source_cited_rate: { min: 0.86 }
+    # Non-negotiable: an answer without a resolvable citation must never ship.
+    answer_citation_rate: { min: 1.0 }
+  abstention:
+    abstention_recall: { min: 0.90 }
+    abstention_precision: { min: 0.65 }
+    false_abstention_rate: { max: 0.10 }
+  operational:
+    # Generous: CI runners vary by an order of magnitude. Measured p95 is ~6 ms.
+    latency_p95_ms: { max: 2000 }
+
+# MEASURED with real models (sentence-transformers all-MiniLM-L6-v2 + ms-marco
+# cross-encoder + ChromaDB), paired with the deterministic generator so retrieval
+# quality is isolated from generation quality. See eval_reports/report-full-retrieval.md:
+#   hit@1 0.903 · recall@k 0.989 · MRR 0.941 · abstention recall 1.000
+#   citation precision 0.801 · correct source 0.921 · answer F1 0.409 · false abstention 0.043
+full-retrieval:
+  retrieval:
+    hit_at_1: { min: 0.85 }
+    recall_at_k: { min: 0.95 }
+    mrr: { min: 0.90 }
+  answer_quality:
+    faithfulness: { min: 0.90 }
+    answer_f1: { min: 0.36 }
+    citation_precision: { min: 0.75 }
+    correct_source_cited_rate: { min: 0.88 }
+    answer_citation_rate: { min: 1.0 }
+  abstention:
+    abstention_recall: { min: 0.90 }
+    abstention_precision: { min: 0.65 }
+    false_abstention_rate: { max: 0.10 }
+  operational:
+    # Transformer inference, so an order of magnitude above the offline profile.
+    latency_p95_ms: { max: 5000 }
+
+# PARTIALLY MEASURED. Retrieval and citation thresholds are inherited from the
+# `full-retrieval` measurement above, which uses the identical embedder, vector
+# store, and reranker. The generation-dependent bounds (faithfulness, answer_f1)
+# and the latency ceiling are still estimates: exercising `claude-opus-5` needs an
+# ANTHROPIC_API_KEY, which was not available when these were set. Run
+# `make eval-full` and re-baseline them in a commit that records what was measured.
+full:
+  retrieval:
+    hit_at_1: { min: 0.80 }
+    recall_at_k: { min: 0.92 }
+    mrr: { min: 0.85 }
+  answer_quality:
+    faithfulness: { min: 0.60 }
+    answer_f1: { min: 0.35 }
+    citation_precision: { min: 0.80 }
+    correct_source_cited_rate: { min: 0.90 }
+    answer_citation_rate: { min: 1.0 }
+  abstention:
+    abstention_recall: { min: 0.90 }
+    abstention_precision: { min: 0.80 }
+    false_abstention_rate: { max: 0.08 }
+  operational:
+    latency_p95_ms: { max: 25000 }

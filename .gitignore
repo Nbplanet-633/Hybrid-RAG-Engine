@@ -1,0 +1,32 @@
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+coverage.xml
+
+# Local secrets
+.env
+
+# Runtime artifacts
+storage/
+.chroma/
+*.log
+
+# Evaluation reports: keep the human-readable summaries, since the README links to
+# them as evidence for its numbers. The JSON is a machine artifact that changes on
+# every run (and is only needed locally for --baseline diffs), so it stays out.
+eval_reports/*
+!eval_reports/
+!eval_reports/*.md
+
+# Editors / OS
+.idea/
+.vscode/
+.DS_Store
