@@ -1,4 +1,5 @@
 import type { LibraryInfo } from "../api/types";
+import { apiKey } from "../apiKey";
 
 const PROFILE_LABELS: Record<string, string> = {
   offline: "Offline",
@@ -41,6 +42,15 @@ export function EngineBadge({ info }: { info: LibraryInfo }) {
           <dd>{info.generator}</dd>
         </dl>
       </details>
+      {info.requires_api_key && (
+        <button
+          type="button"
+          onClick={() => apiKey.forget()}
+          className="mt-1 text-slate-500 underline-offset-2 hover:text-slate-900 hover:underline dark:text-slate-400 dark:hover:text-slate-100"
+        >
+          Forget API key
+        </button>
+      )}
     </div>
   );
 }

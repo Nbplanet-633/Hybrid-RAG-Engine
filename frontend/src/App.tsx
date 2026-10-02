@@ -1,11 +1,28 @@
 import { useState } from "react";
 
-import { useDocuments } from "./api/hooks";
+import { useDocuments, useLibraryInfo } from "./api/hooks";
+import { useApiKey } from "./apiKey";
+import { ApiKeyPrompt } from "./components/ApiKeyPrompt";
 import { AskPanel } from "./components/AskPanel";
 import { Sidebar } from "./components/Sidebar";
 import { ALL_DOCUMENTS } from "./constants";
 
 export function App() {
+  const info = useLibraryInfo();
+  const { key, rejected } = useApiKey();
+
+  // Wait for /library/info before loading anything keyed: it says whether a
+  // key is needed, and requesting first would only collect 401s.
+  if (info.isPending) {
+    return <div className="min-h-screen" aria-busy="true" />;
+  }
+  if (info.data?.requires_api_key && !key) {
+    return <ApiKeyPrompt rejected={rejected} />;
+  }
+  return <Workspace />;
+}
+
+function Workspace() {
   const documents = useDocuments();
   const [scope, setScope] = useState<string>(ALL_DOCUMENTS);
 

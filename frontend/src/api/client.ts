@@ -1,3 +1,4 @@
+import { apiKey } from "../apiKey";
 import type {
   AskRequest,
   AskResponse,
@@ -36,12 +37,18 @@ function detailMessage(body: unknown, fallback: string): string {
   return fallback;
 }
 
+/** Headers every request carries: JSON, plus the API key when one is set. */
+function baseHeaders(): Record<string, string> {
+  const key = apiKey.get();
+  return { Accept: "application/json", ...(key ? { "X-API-Key": key } : {}) };
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   let response: Response;
   try {
     response = await fetch(path, {
       ...init,
-      headers: { Accept: "application/json", ...init?.headers },
+      headers: { ...baseHeaders(), ...init?.headers },
     });
   } catch {
     throw new ApiError(0, "Can't reach the server. Is `askmydocs serve` running?");
@@ -49,6 +56,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   if (response.status === 204) return undefined as T;
 
   const body: unknown = await response.json().catch(() => null);
+  if (response.status === 401) apiKey.reject();
   if (!response.ok) {
     throw new ApiError(response.status, detailMessage(body, `Request failed (${response.status})`));
   }
@@ -83,12 +91,15 @@ export const api = {
     new Promise<DocumentSummary>((resolve, reject) => {
       const xhr = new XMLHttpRequest();
       xhr.open("POST", "/library/documents");
-      xhr.setRequestHeader("Accept", "application/json");
+      for (const [name, value] of Object.entries(baseHeaders())) {
+        xhr.setRequestHeader(name, value);
+      }
       xhr.responseType = "json";
       xhr.upload.onprogress = (event) => {
         if (event.lengthComputable) onProgress?.(event.loaded / event.total);
       };
       xhr.onload = () => {
+        if (xhr.status === 401) apiKey.reject();
         if (xhr.status >= 200 && xhr.status < 300) {
           resolve(xhr.response as DocumentSummary);
         } else {

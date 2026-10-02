@@ -305,6 +305,20 @@ class TestLibrary:
             assert client.delete(f"/library/documents/{doc_id}").status_code == 401
             assert client.post("/library/ask", json={"question": "notice"}).status_code == 401
 
+            # Reads of document content are keyed too: filenames and passage text.
+            assert client.get("/library/documents").status_code == 401
+            key = {"X-API-Key": "s3cret"}
+            answer = client.post("/library/ask", json={"question": "notice period"}, headers=key)
+            chunk_id = answer.json()["citations"][0]["chunk_id"]
+            assert client.get(f"/library/passages/{chunk_id}").status_code == 401
+            assert client.get(f"/library/passages/{chunk_id}", headers=key).status_code == 200
+            assert client.get("/library/documents", headers=key).status_code == 200
+
+            # /library/info stays open, so a client can learn that it needs a key.
+            info = client.get("/library/info")
+            assert info.status_code == 200
+            assert info.json()["requires_api_key"] is True
+
 
 class TestLibraryInfoAndSamples:
     def test_info_describes_the_engine_and_upload_limits(self, client: TestClient) -> None:
@@ -316,6 +330,7 @@ class TestLibraryInfoAndSamples:
         assert body["max_upload_bytes"] == 20 * 1024 * 1024
         assert ".pdf" in body["accepted_extensions"]
         assert body["samples_available"] is True
+        assert body["requires_api_key"] is False
 
     def test_samples_load_the_corpus_into_the_library_idempotently(
         self, client: TestClient

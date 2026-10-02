@@ -13,6 +13,7 @@ const info: LibraryInfo = {
   max_upload_bytes: 1024,
   accepted_extensions: [".md", ".pdf", ".txt"],
   samples_available: true,
+  requires_api_key: false,
 };
 
 const file = (name: string, size: number) => new File([new Uint8Array(size)], name);

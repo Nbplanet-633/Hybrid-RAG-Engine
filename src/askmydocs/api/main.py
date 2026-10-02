@@ -32,6 +32,7 @@ a vector store, so building it per request would dominate latency.
 from __future__ import annotations
 
 import contextlib
+import hmac
 import logging
 import os
 from contextlib import asynccontextmanager
@@ -155,6 +156,9 @@ class LibraryInfo(BaseModel):
     max_upload_bytes: int
     accepted_extensions: list[str]
     samples_available: bool
+    requires_api_key: bool = Field(
+        False, description="Whether library requests need an X-API-Key header."
+    )
 
 
 class PassageOut(BaseModel):
@@ -316,13 +320,16 @@ def get_config() -> AppConfig:
     return config
 
 
+def _expected_api_key() -> str | None:
+    config = _state.get("config")
+    return getattr(getattr(config, "api", None), "api_key", None) or os.getenv("ASKMYDOCS_API_KEY")
+
+
 def require_api_key(x_api_key: str | None = Header(None)) -> None:
     """Enforce the shared secret when one is configured."""
-    config = _state.get("config")
-    expected = getattr(getattr(config, "api", None), "api_key", None) or os.getenv(
-        "ASKMYDOCS_API_KEY"
-    )
-    if expected and x_api_key != expected:
+    expected = _expected_api_key()
+    # Constant-time comparison, so response timing can't reveal the key byte by byte.
+    if expected and not hmac.compare_digest((x_api_key or "").encode(), expected.encode()):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or missing X-API-Key"
         )
@@ -448,8 +455,11 @@ _UPLOAD_ERROR_STATUS: dict[type[UploadError], int] = {
 
 
 @app.get("/library/documents", response_model=list[DocumentSummary], tags=["library"])
-def list_documents(library: DocumentLibrary = Depends(get_library)) -> list[DocumentSummary]:
-    """Every uploaded document."""
+def list_documents(
+    library: DocumentLibrary = Depends(get_library),
+    _: None = Depends(require_api_key),
+) -> list[DocumentSummary]:
+    """Every uploaded document. Keyed: filenames can be sensitive too."""
     return library.documents()
 
 
@@ -542,12 +552,21 @@ def library_info(library: DocumentLibrary = Depends(get_library)) -> LibraryInfo
         max_upload_bytes=library.max_bytes,
         accepted_extensions=sorted(SUPPORTED_SUFFIXES),
         samples_available=Path(config.corpus_dir).is_dir(),
+        requires_api_key=bool(_expected_api_key()),
     )
 
 
 @app.get("/library/passages/{chunk_id}", response_model=PassageOut, tags=["library"])
-def get_passage(chunk_id: str, library: DocumentLibrary = Depends(get_library)) -> PassageOut:
-    """The full text of one passage, as cited by ``chunk_id`` in an answer."""
+def get_passage(
+    chunk_id: str,
+    library: DocumentLibrary = Depends(get_library),
+    _: None = Depends(require_api_key),
+) -> PassageOut:
+    """The full text of one passage, as cited by ``chunk_id`` in an answer.
+
+    Keyed like /library/ask: chunk ids are predictable (``<doc_id>::0000``), so an
+    open endpoint would hand document text to anyone who knew a filename.
+    """
     try:
         chunk = library.passage(chunk_id)
     except PassageNotFound as exc:

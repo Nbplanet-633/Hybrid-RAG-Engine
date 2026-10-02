@@ -21,6 +21,8 @@ export interface LibraryInfo {
   max_upload_bytes: number;
   accepted_extensions: string[];
   samples_available: boolean;
+  /** Whether library requests need the deployment's X-API-Key. */
+  requires_api_key: boolean;
 }
 
 export interface Passage {
