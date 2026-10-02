@@ -37,7 +37,9 @@ export function AnswerView({ answer, turnId }: Props) {
 
   function showCitation(marker: string) {
     setHighlighted(marker);
-    document.getElementById(anchor(marker))?.scrollIntoView({ behavior: "smooth", block: "center" });
+    document
+      .getElementById(anchor(marker))
+      ?.scrollIntoView({ behavior: "smooth", block: "center" });
   }
 
   return (

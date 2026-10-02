@@ -71,7 +71,12 @@ export function useUploads(info: LibraryInfo | undefined) {
   const uploadFiles = useCallback(
     async (files: File[]) => {
       const batch = files.map((file) => {
-        const item: UploadItem = { id: ++uploadSeq, name: file.name, progress: 0, status: "queued" };
+        const item: UploadItem = {
+          id: ++uploadSeq,
+          name: file.name,
+          progress: 0,
+          status: "queued",
+        };
         return { file, item };
       });
       setItems((current) => [...batch.map((b) => b.item), ...current].slice(0, 20));
@@ -86,7 +91,10 @@ export function useUploads(info: LibraryInfo | undefined) {
         try {
           const summary = await api.upload(file, (fraction) =>
             // The last stretch is server-side parsing and embedding, not transfer.
-            update(item.id, fraction >= 1 ? { status: "indexing", progress: 1 } : { progress: fraction }),
+            update(
+              item.id,
+              fraction >= 1 ? { status: "indexing", progress: 1 } : { progress: fraction },
+            ),
           );
           update(item.id, {
             status: "done",
@@ -103,13 +111,16 @@ export function useUploads(info: LibraryInfo | undefined) {
   );
 
   const clearFinished = useCallback(() => {
-    setItems((current) => current.filter((item) => item.status !== "done" && item.status !== "error"));
+    setItems((current) =>
+      current.filter((item) => item.status !== "done" && item.status !== "error"),
+    );
   }, []);
 
   return { items, uploadFiles, clearFinished };
 }
 
-function precheck(file: File, info: LibraryInfo): string | undefined {
+/** Why the server would reject this file, or undefined. Exported for tests. */
+export function precheck(file: File, info: LibraryInfo): string | undefined {
   const dot = file.name.lastIndexOf(".");
   const extension = dot >= 0 ? file.name.slice(dot).toLowerCase() : "";
   if (!info.accepted_extensions.includes(extension)) {

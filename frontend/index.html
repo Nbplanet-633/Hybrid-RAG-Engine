@@ -3,15 +3,22 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="Upload documents and ask questions. Every answer cites its source." />
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📄</text></svg>" />
+    <meta
+      name="description"
+      content="Upload documents and ask questions. Every answer cites its source."
+    />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📄</text></svg>"
+    />
     <title>Ask My Docs</title>
     <script>
       // Apply the saved theme before first paint, so dark mode never flashes white.
       // Mirrors applyTheme() in src/theme.ts.
       try {
         var t = localStorage.getItem("theme");
-        var dark = t === "dark" || (t !== "light" && matchMedia("(prefers-color-scheme: dark)").matches);
+        var dark =
+          t === "dark" || (t !== "light" && matchMedia("(prefers-color-scheme: dark)").matches);
         document.documentElement.classList.toggle("dark", dark);
       } catch (e) {}
     </script>

@@ -1,7 +1,11 @@
 import { useTheme, type Theme } from "../theme";
 
 const NEXT: Record<Theme, Theme> = { system: "light", light: "dark", dark: "system" };
-const LABEL: Record<Theme, string> = { system: "System theme", light: "Light theme", dark: "Dark theme" };
+const LABEL: Record<Theme, string> = {
+  system: "System theme",
+  light: "Light theme",
+  dark: "Dark theme",
+};
 const ICON: Record<Theme, string> = { system: "◐", light: "☀", dark: "☾" };
 
 export function ThemeToggle() {

@@ -35,16 +35,34 @@ export function RetrievalTrace({
         <table className="w-full text-left text-xs">
           <thead className="text-slate-500 dark:text-slate-400">
             <tr>
-              <th scope="col" className="px-3 py-2 font-medium">#</th>
-              <th scope="col" className="px-3 py-2 font-medium">Passage</th>
-              <th scope="col" className="px-3 py-2 font-medium">Found by</th>
-              <th scope="col" className="px-3 py-2 text-right font-medium" title="Rank in the meaning (embedding) search">
+              <th scope="col" className="px-3 py-2 font-medium">
+                #
+              </th>
+              <th scope="col" className="px-3 py-2 font-medium">
+                Passage
+              </th>
+              <th scope="col" className="px-3 py-2 font-medium">
+                Found by
+              </th>
+              <th
+                scope="col"
+                className="px-3 py-2 text-right font-medium"
+                title="Rank in the meaning (embedding) search"
+              >
                 Meaning
               </th>
-              <th scope="col" className="px-3 py-2 text-right font-medium" title="Rank in the keyword (BM25) search">
+              <th
+                scope="col"
+                className="px-3 py-2 text-right font-medium"
+                title="Rank in the keyword (BM25) search"
+              >
                 Keywords
               </th>
-              <th scope="col" className="px-3 py-2 text-right font-medium" title="Final score after reranking">
+              <th
+                scope="col"
+                className="px-3 py-2 text-right font-medium"
+                title="Final score after reranking"
+              >
                 Score
               </th>
             </tr>
@@ -54,7 +72,10 @@ export function RetrievalTrace({
               const marker = citedAs.get(passage.chunk_id);
               const foundBy = FOUND_BY[passage.retriever];
               return (
-                <tr key={passage.chunk_id} className={marker ? "bg-indigo-50/60 dark:bg-indigo-500/10" : ""}>
+                <tr
+                  key={passage.chunk_id}
+                  className={marker ? "bg-indigo-50/60 dark:bg-indigo-500/10" : ""}
+                >
                   <td className="px-3 py-2 tabular-nums">{passage.rank}</td>
                   <td className="max-w-[16rem] px-3 py-2">
                     <div className="flex items-center gap-1.5">
@@ -66,7 +87,10 @@ export function RetrievalTrace({
                       <span className="truncate font-medium">{basename(passage.source)}</span>
                     </div>
                     {passage.section && (
-                      <div className="truncate text-slate-500 dark:text-slate-400" title={passage.section}>
+                      <div
+                        className="truncate text-slate-500 dark:text-slate-400"
+                        title={passage.section}
+                      >
                         {passage.section}
                       </div>
                     )}
@@ -75,7 +99,9 @@ export function RetrievalTrace({
                     {foundBy.label}
                   </td>
                   <td className="px-3 py-2 text-right tabular-nums">{passage.dense_rank ?? "–"}</td>
-                  <td className="px-3 py-2 text-right tabular-nums">{passage.lexical_rank ?? "–"}</td>
+                  <td className="px-3 py-2 text-right tabular-nums">
+                    {passage.lexical_rank ?? "–"}
+                  </td>
                   <td className="px-3 py-2 text-right tabular-nums">{passage.score.toFixed(2)}</td>
                 </tr>
               );
