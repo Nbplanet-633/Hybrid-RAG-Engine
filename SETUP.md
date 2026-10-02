@@ -310,12 +310,17 @@ make eval-full
 Get a key at [console.anthropic.com](https://console.anthropic.com/). This path costs money per
 query.
 
-### The Streamlit web UI
+### The web app
+
+Needs [Node.js](https://nodejs.org/) 20 or newer, once, to build the React frontend:
 
 ```bash
-make install-full     # if you have not already
-make ui               # opens http://localhost:8501
+make ui               # npm ci && npm run build, in frontend/
+make serve            # API and web app together on http://localhost:8000
 ```
+
+To change the frontend with instant reload, run `make serve` in one terminal and
+`cd frontend && npm run dev` in another, then open http://localhost:5173.
 
 ### Switching profiles
 

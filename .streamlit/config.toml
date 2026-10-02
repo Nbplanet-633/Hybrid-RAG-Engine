@@ -1,9 +1,0 @@
-# Streamlit reads this from the directory you run `streamlit run` in (the repo root).
-
-[server]
-# Match uploads.max_file_mb in config/app.yaml, so the upload widget advertises the
-# limit the library actually enforces instead of Streamlit's 200 MB default.
-maxUploadSize = 20
-
-[browser]
-gatherUsageStats = false

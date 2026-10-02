@@ -131,7 +131,7 @@ gate — then prints a verdict:
   [ ok ] Answering works  cited 1 source(s), correct value returned
          Every formal dispute incurs a **€15.00 dispute fee**, charged when the dispute is opened. [S1]
   [ ok ] Refusing works  out-of-scope question abstained (low_relevance)
-  [ ok ] Test suite  324 passed in 28.44s
+  [ ok ] Test suite  325 passed in 28.44s
   [ ok ] Evaluation gate  12/12 thresholds met on 105 questions
 
   THE PROJECT IS WORKING ON THIS MACHINE.
@@ -181,11 +181,11 @@ make ask Q="Does Aurora support cryptocurrency payments?"
 ### Everything else
 
 ```bash
-make test              # 324 tests
+make test              # 325 tests
 make eval              # golden-set evaluation + threshold gate
 make validate-golden   # check the dataset's own labels
-make serve             # HTTP API on :8000, OpenAPI docs at /docs
-make ui                # Streamlit demo on :8501
+make ui                # build the React web app (needs Node.js)
+make serve             # API + web app on :8000, OpenAPI docs at /docs
 make lint              # ruff check + format check
 make ci                # lint → validate → test → eval, exactly as CI runs it
 make help              # every target
@@ -209,7 +209,6 @@ make eval-full
 ```bash
 docker compose up api                          # offline profile, :8000
 docker compose --profile full up api-full      # Claude-backed, :8001, needs ANTHROPIC_API_KEY
-docker compose --profile ui up ui              # Streamlit demo, :8501
 ```
 
 ---
@@ -231,8 +230,6 @@ To work on the frontend, run the API and the Vite dev server side by side. Vite 
 askmydocs serve                              # terminal 1: API on :8000
 cd frontend && npm run dev                   # terminal 2: http://localhost:5173
 ```
-
-The older Streamlit demo (`make ui`, :8501) still works and uses the same library.
 
 1. Drop PDF, Markdown, text, or HTML files into **Your documents** in the sidebar, or click
    **Choose files**. No document to hand? **Try with sample documents** loads the demo corpus.
@@ -270,18 +267,18 @@ extractable text, so a scanned PDF with no text layer is rejected with that expl
 is parsed from a hidden staging copy and only moved into place once it passes, so a rejected
 upload leaves nothing behind.
 
-The sidebar's **Profile** picks the engine:
+The profile the server starts with (`askmydocs serve --profile ...`) picks the engine, and the
+web app shows which one is running:
 
 | Profile | Search | Answers | Needs |
 |---|---|---|---|
-| Offline | hashed embeddings + keyword rerank | quoted sentences | nothing |
-| Full retrieval | MiniLM embeddings + cross-encoder rerank, run locally | quoted sentences | `pip install -e ".[models]"` |
-| Full | same as full retrieval | written by Claude | the above + `ANTHROPIC_API_KEY` |
+| `offline` | hashed embeddings + keyword rerank | quoted sentences | nothing |
+| `full-retrieval` | MiniLM embeddings + cross-encoder rerank, run locally | quoted sentences | `pip install -e ".[models]"` |
+| `full` | same as full retrieval | written by Claude | the above + `ANTHROPIC_API_KEY` |
 
-The UI defaults to **Full retrieval** when its packages are installed, since it is free and
-much better at matching meaning, and marks any profile this machine cannot run as
-"(not set up)" with what to install. The first switch to a profile downloads its models and
-re-indexes your uploads with them.
+`full-retrieval` is the best free choice: much better at matching meaning, with no API key.
+`serve` refuses to start a profile this machine cannot run and lists what to install. The
+first start with a new profile downloads its models and re-indexes your uploads with them.
 
 Full retrieval improves **which passages are found**, not which sentence is quoted. Both quote
 modes pick the sentence by word overlap with the question, so the right passage can still yield
@@ -576,9 +573,8 @@ data/
   golden/            105 validated question-answer pairs
 scripts/verify.py    one-command installation check
 eval/                metrics · runner + gate · label validator · Ragas cross-check
-tests/               324 tests
+tests/               325 tests
 frontend/            React + TypeScript web app (Vite, Tailwind, TanStack Query)
-ui/streamlit_app.py  Streamlit demo UI
 ```
 
 ### Ingestion is incremental

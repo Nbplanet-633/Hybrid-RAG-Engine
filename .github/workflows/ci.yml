@@ -31,9 +31,9 @@ jobs:
           cache-dependency-path: pyproject.toml
       - run: pip install -e ".[loaders,chroma,dev]"
       - name: Ruff lint
-        run: ruff check src eval tests ui
+        run: ruff check src eval tests
       - name: Ruff format check
-        run: ruff format --check src eval tests ui
+        run: ruff format --check src eval tests
 
   test:
     name: Tests (py${{ matrix.python-version }})

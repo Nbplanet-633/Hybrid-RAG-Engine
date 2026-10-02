@@ -116,6 +116,22 @@ class TestInspectionCommands:
 
 
 class TestErrorHandling:
+    def test_serve_refuses_a_profile_that_is_not_set_up(
+        self, cli_env: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from askmydocs import config as config_module
+
+        monkeypatch.setattr(config_module.importlib.util, "find_spec", lambda name: None)
+        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+        started = []
+        monkeypatch.setattr("uvicorn.run", lambda *args, **kwargs: started.append(args))
+
+        result = runner.invoke(app, ["serve", "--profile", "full"])
+        assert result.exit_code == 1
+        assert "isn't set up" in result.stdout
+        assert "ANTHROPIC_API_KEY" in result.stdout
+        assert started == []  # the server never started
+
     def test_unknown_profile_exits_cleanly(self, cli_env: Path) -> None:
         result = runner.invoke(app, ["stats", "--profile", "nonsense"])
         assert result.exit_code == 2

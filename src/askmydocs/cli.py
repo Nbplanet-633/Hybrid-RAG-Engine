@@ -21,7 +21,7 @@ from rich.markup import escape
 from rich.panel import Panel
 from rich.table import Table
 
-from askmydocs.config import load_config
+from askmydocs.config import load_config, missing_requirements
 from askmydocs.pipeline import RAGPipeline
 
 app = typer.Typer(
@@ -231,6 +231,17 @@ def serve(
     import uvicorn
 
     cfg = load_config(path=config, profile=profile)
+    # Refuse to start a profile this machine cannot run. The API would come up
+    # anyway and fail on the first request; saying what to install is kinder.
+    if missing := missing_requirements(cfg):
+        console.print(
+            f"[red]The {cfg.profile} profile isn't set up on this machine.[/red] It needs:"
+        )
+        for item in missing:
+            console.print(f"  - {escape(item)}")
+        console.print("Install what's missing, or pick another profile with --profile.")
+        raise typer.Exit(code=1)
+
     # The API builds its own pipeline at startup, so pass the selection through
     # the environment rather than trying to hand it a live object across processes.
     os.environ["ASKMYDOCS_PROFILE"] = cfg.profile

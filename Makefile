@@ -59,8 +59,8 @@ ask: ## Ask one question (make ask Q="How much is the dispute fee?")
 serve: ## Run the HTTP API on :8000
 	$(BIN)/askmydocs serve
 
-ui: ## Run the Streamlit demo on :8501
-	$(BIN)/streamlit run ui/streamlit_app.py
+ui: ## Build the React web app; make serve then serves it at :8000
+	cd frontend && npm ci && npm run build
 
 stats: ## Show index state
 	$(BIN)/askmydocs stats
@@ -77,12 +77,12 @@ test-cov: ## Run the tests with a coverage report
 	$(BIN)/python -m pytest --cov=src/askmydocs --cov-report=term-missing --cov-report=xml
 
 lint: ## Lint and check formatting
-	$(BIN)/ruff check src eval tests ui
-	$(BIN)/ruff format --check src eval tests ui
+	$(BIN)/ruff check src eval tests
+	$(BIN)/ruff format --check src eval tests
 
 format: ## Auto-fix lint and formatting
-	$(BIN)/ruff check --fix src eval tests ui
-	$(BIN)/ruff format src eval tests ui
+	$(BIN)/ruff check --fix src eval tests
+	$(BIN)/ruff format src eval tests
 
 # --- evaluation -------------------------------------------------------------
 

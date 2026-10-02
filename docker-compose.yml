@@ -42,28 +42,6 @@ services:
       - ./data/corpus:/app/data/corpus:ro
     restart: unless-stopped
 
-  ui:
-    profiles: ["ui"]
-    build:
-      context: .
-      target: runtime
-    image: ask-my-docs:latest
-    command: >-
-      sh -c "pip install --no-cache-dir streamlit &&
-             streamlit run /app/ui/streamlit_app.py --server.port 8501 --server.address 0.0.0.0"
-    environment:
-      ASKMYDOCS_PROFILE: offline
-      ASKMYDOCS_STORAGE_DIR: /data/storage
-      # Shared with the api service, so both see the same upload library.
-      ASKMYDOCS_UPLOADS_DIR: /data/uploads
-    ports:
-      - "8501:8501"
-    volumes:
-      - index-data:/data
-      - ./ui:/app/ui:ro
-      - ./.streamlit:/app/.streamlit:ro
-      - ./data/corpus:/app/data/corpus:ro
-
 volumes:
   index-data:
   index-data-full:
