@@ -36,12 +36,18 @@ jobs:
         run: ruff format --check src eval tests
 
   test:
-    name: Tests (py${{ matrix.python-version }})
-    runs-on: ubuntu-latest
+    name: Tests (${{ matrix.os }}, py${{ matrix.python-version }})
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
+        os: [ubuntu-latest]
         python-version: ["3.10", "3.11", "3.12"]
+        # Windows on one version: path handling is where it differs, and a
+        # backslash in document sources once zeroed every retrieval metric.
+        include:
+          - os: windows-latest
+            python-version: "3.12"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -53,11 +59,36 @@ jobs:
       - name: Run the test suite
         run: pytest --cov=src/askmydocs --cov-report=xml --cov-report=term
       - name: Upload coverage
-        if: matrix.python-version == '3.12'
+        if: matrix.python-version == '3.12' && matrix.os == 'ubuntu-latest'
         uses: actions/upload-artifact@v4
         with:
           name: coverage
           path: coverage.xml
+
+  frontend:
+    name: Frontend (lint, types, tests, build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - name: ESLint
+        run: npm run lint
+      - name: Prettier
+        run: npm run format:check
+      - name: Type check
+        run: npm run typecheck
+      - name: Tests
+        run: npm test
+      - name: Build
+        run: npm run build
 
   golden-set:
     name: Validate the golden dataset
@@ -185,3 +216,15 @@ jobs:
         run: |
           docker run --rm ask-my-docs:ci sh -c \
             'askmydocs ingest --reset && askmydocs ask "What is the dispute fee?" | tee /dev/stderr | grep -q "15.00"'
+      # And that one container serves the web app and the library API together.
+      - name: Smoke test the web app
+        run: |
+          docker run -d --name app -p 8000:8000 ask-my-docs:ci
+          for i in $(seq 1 60); do curl -fs localhost:8000/healthz >/dev/null && break; sleep 1; done
+          curl -fsS -H "Accept: text/html" localhost:8000/ | grep -q '<div id="root">'
+          curl -fsS -X POST localhost:8000/library/samples | grep -q '"added"'
+          curl -fsS localhost:8000/library/ask -H 'Content-Type: application/json' \
+            -d '{"question":"What is the dispute fee?"}' | tee /dev/stderr | grep -q "15.00"
+      - name: Container logs
+        if: failure()
+        run: docker logs app || true

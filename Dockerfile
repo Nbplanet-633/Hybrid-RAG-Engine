@@ -1,5 +1,17 @@
-# Multi-stage build: wheels are compiled in the builder and only the installed
-# environment is copied forward, so no compiler toolchain ships in the runtime.
+# Multi-stage build: the React app and the Python wheels are each built in their
+# own stage, and only their outputs are copied forward, so neither Node nor a
+# compiler toolchain ships in the runtime image.
+FROM node:22-slim AS frontend
+
+WORKDIR /frontend
+# Lockfile first, so the npm layer is cached until dependencies change.
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci
+COPY frontend/ ./
+# Type-checks, then bundles into /frontend/dist.
+RUN npm run build
+
+
 FROM python:3.12-slim AS builder
 
 ENV PIP_NO_CACHE_DIR=1 \
@@ -27,7 +39,8 @@ ENV PATH="/opt/venv/bin:$PATH" \
     PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     ASKMYDOCS_PROFILE=offline \
-    ASKMYDOCS_STORAGE_DIR=/data/storage
+    ASKMYDOCS_STORAGE_DIR=/data/storage \
+    ASKMYDOCS_UPLOADS_DIR=/data/uploads
 
 COPY --from=builder /opt/venv /opt/venv
 
@@ -35,10 +48,12 @@ WORKDIR /app
 COPY src/ ./src/
 COPY config/ ./config/
 COPY data/ ./data/
+# The API serves the built web app from api.frontend_dir (frontend/dist).
+COPY --from=frontend /frontend/dist ./frontend/dist
 
-# Run unprivileged, and give the app a writable volume for the index.
+# Run unprivileged, and give the app a writable volume for the index and uploads.
 RUN useradd --create-home --shell /bin/bash askmydocs \
-    && mkdir -p /data/storage \
+    && mkdir -p /data/storage /data/uploads \
     && chown -R askmydocs:askmydocs /app /data
 USER askmydocs
 

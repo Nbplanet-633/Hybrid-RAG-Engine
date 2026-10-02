@@ -207,7 +207,7 @@ make eval-full
 ### Docker
 
 ```bash
-docker compose up api                          # offline profile, :8000
+docker compose up api                          # web app + API, offline profile, :8000
 docker compose --profile full up api-full      # Claude-backed, :8001, needs ANTHROPIC_API_KEY
 ```
 
@@ -495,9 +495,12 @@ the check now skips answers under four content tokens rather than training peopl
 every commit. The in-house metrics run offline in 1.4 seconds; Ragas is there for a second
 opinion before changing a threshold.
 
-CI runs lint → golden validation → tests (Python 3.10/3.11/3.12) → the evaluation gate → a
-Docker build with a smoke test that indexes and answers inside the image. The evaluation job
-posts its report to the job summary and updates a single PR comment in place.
+CI runs lint → golden validation → tests (Python 3.10/3.11/3.12 on Linux, plus 3.12 on
+Windows, where path handling differs) → the evaluation gate → a Docker build with smoke tests
+that index and answer inside the image and confirm one container serves both the web app and
+the library API. A frontend job runs ESLint, Prettier, the TypeScript check, the Vitest suite,
+and a production build. The evaluation job posts its report to the job summary and updates a
+single PR comment in place.
 
 ---
 
