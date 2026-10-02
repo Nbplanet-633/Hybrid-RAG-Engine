@@ -11,6 +11,9 @@ dist/
 htmlcov/
 coverage.xml
 
+# Frontend dependencies (frontend/dist is covered by dist/ above)
+node_modules/
+
 # Local secrets
 .env
 

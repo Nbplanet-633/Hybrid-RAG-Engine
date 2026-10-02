@@ -216,12 +216,26 @@ docker compose --profile ui up ui              # Streamlit demo, :8501
 
 ## Ask your own documents
 
+The web app is a React frontend (`frontend/`) served by the API itself, so it runs as one
+service. Build it once, then start the API:
+
 ```bash
-make ui      # http://localhost:8501
+cd frontend && npm install && npm run build && cd ..
+askmydocs serve --profile full-retrieval     # http://localhost:8000
 ```
 
-1. Drop PDF, Markdown, text, or HTML files into **Your documents** in the sidebar and click
-   **Add to library**. No document to hand? **Try with sample documents** loads the demo corpus.
+To work on the frontend, run the API and the Vite dev server side by side. Vite proxies
+`/library` to the API, so the browser stays on one origin and changes reload instantly:
+
+```bash
+askmydocs serve                              # terminal 1: API on :8000
+cd frontend && npm run dev                   # terminal 2: http://localhost:5173
+```
+
+The older Streamlit demo (`make ui`, :8501) still works and uses the same library.
+
+1. Drop PDF, Markdown, text, or HTML files into **Your documents** in the sidebar, or click
+   **Choose files**. No document to hand? **Try with sample documents** loads the demo corpus.
 2. Pick **Search in**: all documents, or just one.
 3. Ask. The answer cites the file and section it came from, or the system declines and says why.
 
@@ -554,7 +568,8 @@ data/
 scripts/verify.py    one-command installation check
 eval/                metrics · runner + gate · label validator · Ragas cross-check
 tests/               305 tests
-ui/streamlit_app.py  demo UI
+frontend/            React + TypeScript web app (Vite, Tailwind, TanStack Query)
+ui/streamlit_app.py  Streamlit demo UI
 ```
 
 ### Ingestion is incremental

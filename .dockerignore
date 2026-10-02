@@ -14,3 +14,5 @@ eval_reports/
 *.egg-info/
 build/
 dist/
+node_modules/
+frontend/dist/
