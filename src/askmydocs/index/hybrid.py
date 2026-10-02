@@ -20,6 +20,8 @@ a black box.
 
 from __future__ import annotations
 
+from collections.abc import Iterable
+
 from askmydocs.index.bm25 import BM25Index
 from askmydocs.index.chunk_store import ChunkStore
 from askmydocs.index.embeddings import Embedder
@@ -52,23 +54,51 @@ class HybridRetriever:
 
     # -- legs --------------------------------------------------------------
 
-    def _dense(self, query: str, k: int) -> list[tuple[str, float]]:
+    def _dense(
+        self, query: str, k: int, allowed: set[str] | None = None
+    ) -> list[tuple[str, float]]:
         vector = self.embedder.embed_query(query)
-        return self.vector_store.query(vector, k)
+        if allowed is None:
+            return self.vector_store.query(vector, k)
+        # The vector stores hold only ids, so a document filter cannot be pushed
+        # down into the search. Score everything and filter instead: exact, and
+        # cheap at the scale of a personal document library.
+        ranked = self.vector_store.query(vector, self.vector_store.count())
+        return [pair for pair in ranked if pair[0] in allowed][:k]
 
-    def _lexical(self, query: str, k: int) -> list[tuple[str, float]]:
-        return self.bm25.query(query, k)
+    def _lexical(
+        self, query: str, k: int, allowed: set[str] | None = None
+    ) -> list[tuple[str, float]]:
+        return self.bm25.query(query, k, allowed)
 
     # -- fusion ------------------------------------------------------------
 
-    def retrieve(self, query: str, top_k: int | None = None) -> list[RetrievedChunk]:
-        """Retrieve fused candidates for ``query``, best first."""
+    def retrieve(
+        self,
+        query: str,
+        top_k: int | None = None,
+        doc_ids: Iterable[str] | None = None,
+    ) -> list[RetrievedChunk]:
+        """Retrieve fused candidates for ``query``, best first.
+
+        ``doc_ids`` restricts both legs to chunks of those documents; ``None``
+        searches everything.
+        """
         limit = top_k or self.candidates
         if not query.strip():
             return []
 
-        dense = self._dense(query, self.dense_k) if self.fusion != "lexical_only" else []
-        lexical = self._lexical(query, self.lexical_k) if self.fusion != "dense_only" else []
+        allowed: set[str] | None = None
+        if doc_ids is not None:
+            wanted = set(doc_ids)
+            allowed = {chunk.chunk_id for chunk in self.chunk_store if chunk.doc_id in wanted}
+            if not allowed:
+                return []
+
+        dense = self._dense(query, self.dense_k, allowed) if self.fusion != "lexical_only" else []
+        lexical = (
+            self._lexical(query, self.lexical_k, allowed) if self.fusion != "dense_only" else []
+        )
 
         dense_scores = dict(dense)
         lexical_scores = dict(lexical)

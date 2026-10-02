@@ -245,9 +245,17 @@ class RAGPipeline:
     # Query
     # ------------------------------------------------------------------
 
-    def retrieve(self, question: str, top_n: int | None = None) -> list[RetrievedChunk]:
-        """Run the retrieval half of the pipeline: hybrid search, then rerank."""
-        candidates = self.retriever.retrieve(question)
+    def retrieve(
+        self,
+        question: str,
+        top_n: int | None = None,
+        doc_ids: Iterable[str] | None = None,
+    ) -> list[RetrievedChunk]:
+        """Run the retrieval half of the pipeline: hybrid search, then rerank.
+
+        ``doc_ids`` limits the search to those documents; ``None`` searches all.
+        """
+        candidates = self.retriever.retrieve(question, doc_ids=doc_ids)
         if not candidates:
             return []
         limit = top_n or self.config.rerank.top_n
@@ -255,12 +263,41 @@ class RAGPipeline:
             return candidates[:limit]
         return self.reranker.rerank(question, candidates, limit)
 
-    def answer(self, question: str, top_n: int | None = None) -> Answer:
+    def answer(
+        self,
+        question: str,
+        top_n: int | None = None,
+        doc_ids: Iterable[str] | None = None,
+    ) -> Answer:
         """Answer a question, or abstain. Never returns an uncited claim."""
         if not question or not question.strip():
             raise ValueError("question must be a non-empty string")
-        retrieved = self.retrieve(question, top_n=top_n)
+        retrieved = self.retrieve(question, top_n=top_n, doc_ids=doc_ids)
         return self.answerer.answer(question.strip(), retrieved)
+
+    # ------------------------------------------------------------------
+    # Documents
+    # ------------------------------------------------------------------
+
+    def documents(self) -> dict[str, dict[str, Any]]:
+        """Indexed documents keyed by doc_id, as recorded in the manifest."""
+        return {doc_id: dict(record) for doc_id, record in self._manifest["documents"].items()}
+
+    def delete_document(self, doc_id: str) -> bool:
+        """Remove one document from every index. Returns False if it was not indexed."""
+        if doc_id not in self._manifest["documents"]:
+            return False
+        stale = self.chunk_store.delete_document(doc_id)
+        if stale:
+            self.vector_store.delete(stale)
+        del self._manifest["documents"][doc_id]
+
+        self.chunk_store.save()
+        self.vector_store.persist()
+        self.bm25 = BM25Index().build(self.chunk_store.all())
+        self.retriever.bm25 = self.bm25
+        self._save_manifest()
+        return True
 
     # ------------------------------------------------------------------
     # Introspection

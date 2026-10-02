@@ -140,10 +140,25 @@ class ApiConfig(BaseModel):
     api_key: str | None = None
 
 
+class UploadsConfig(BaseModel):
+    """The user document library: files uploaded through the UI or API.
+
+    Kept in its own index, apart from ``storage_dir``, so that uploads can never
+    leak into the corpus the evaluation gate measures.
+    """
+
+    # Uploaded files live in <dir>/files, shared by every profile. Each profile
+    # indexes them into <dir>/index/<profile>, since vectors from different
+    # embedders are not comparable.
+    dir: str = "./storage/uploads"
+    max_file_mb: float = Field(20.0, gt=0)
+
+
 class AppConfig(BaseModel):
     profile: str = "offline"
     storage_dir: str = "./storage"
     corpus_dir: str = "./data/corpus"
+    uploads: UploadsConfig = Field(default_factory=UploadsConfig)
     ingest: IngestConfig = Field(default_factory=IngestConfig)
     embedding: EmbeddingConfig = Field(default_factory=EmbeddingConfig)
     vector_store: VectorStoreConfig = Field(default_factory=VectorStoreConfig)
@@ -192,6 +207,10 @@ def _env_overrides() -> dict[str, Any]:
         out["storage_dir"] = v
     if v := os.getenv("ASKMYDOCS_CORPUS_DIR"):
         out["corpus_dir"] = v
+    if v := os.getenv("ASKMYDOCS_UPLOADS_DIR"):
+        out.setdefault("uploads", {})["dir"] = v
+    if v := os.getenv("ASKMYDOCS_MAX_UPLOAD_MB"):
+        out.setdefault("uploads", {})["max_file_mb"] = float(v)
     if v := os.getenv("ASKMYDOCS_GENERATION_MODEL"):
         out.setdefault("generation", {})["model"] = v
     if v := os.getenv("ASKMYDOCS_API_KEY"):

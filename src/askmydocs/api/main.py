@@ -12,6 +12,13 @@ Endpoints
 ``GET  /stats``     index and configuration state
 ``GET  /prompts``   the versioned prompt registry
 
+Upload library — user documents, in an index separate from the evaluated corpus:
+
+``GET    /library/documents``          list uploaded documents
+``POST   /library/documents``          upload one file (multipart ``file``) and index it
+``DELETE /library/documents/{doc_id}`` remove a document and its file
+``POST   /library/ask``                answer from the library, optionally from chosen documents
+
 The pipeline is built once at startup and shared. It loads local models and opens
 a vector store, so building it per request would dominate latency.
 """
@@ -24,19 +31,33 @@ import os
 from contextlib import asynccontextmanager
 from typing import Any
 
-from fastapi import Depends, FastAPI, Header, HTTPException, status
+from fastapi import Depends, FastAPI, File, Header, HTTPException, Response, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from askmydocs import __version__
 from askmydocs.config import AppConfig, load_config
-from askmydocs.models import Answer
+from askmydocs.library import (
+    DocumentLibrary,
+    DocumentNotFound,
+    DuplicateDocument,
+    FileTooLarge,
+    UnsupportedFileType,
+    UploadError,
+)
+from askmydocs.models import Answer, DocumentSummary
 from askmydocs.pipeline import RAGPipeline
 
 logger = logging.getLogger("askmydocs.api")
 
 # Module-level state, populated by the lifespan handler.
-_state: dict[str, Any] = {"pipeline": None, "config": None, "error": None}
+_state: dict[str, Any] = {
+    "pipeline": None,
+    "config": None,
+    "error": None,
+    "library": None,
+    "library_error": None,
+}
 
 
 # ---------------------------------------------------------------------------
@@ -89,6 +110,14 @@ class AskResponse(BaseModel):
     input_tokens: int = 0
     output_tokens: int = 0
     retrieval: list[RetrievedOut] | None = None
+
+
+class LibraryAskRequest(AskRequest):
+    doc_ids: list[str] | None = Field(
+        None,
+        min_length=1,
+        description="Answer only from these documents. Omit to search the whole library.",
+    )
 
 
 class IngestRequest(BaseModel):
@@ -175,6 +204,13 @@ async def lifespan(app: FastAPI):
         # container hides the reason from anyone reading the logs.
         _state["error"] = f"{type(exc).__name__}: {exc}"
         logger.exception("pipeline failed to initialise")
+    # Built separately so a broken upload library cannot take /ask down, and
+    # vice versa.
+    try:
+        _state["library"] = DocumentLibrary(_state.get("config") or load_config())
+    except Exception as exc:  # noqa: BLE001
+        _state["library_error"] = f"{type(exc).__name__}: {exc}"
+        logger.exception("upload library failed to initialise")
     yield
     _state.clear()
 
@@ -203,6 +239,20 @@ def get_pipeline() -> RAGPipeline:
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Pipeline not initialised"
         )
     return pipeline
+
+
+def get_library() -> DocumentLibrary:
+    if _state.get("library_error"):
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Upload library unavailable: {_state['library_error']}",
+        )
+    library = _state.get("library")
+    if library is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Upload library not initialised"
+        )
+    return library
 
 
 def get_config() -> AppConfig:
@@ -330,3 +380,94 @@ def prompts(pipeline: RAGPipeline = Depends(get_pipeline)) -> dict[str, Any]:
         },
         "available": pipeline.prompts.describe(),
     }
+
+
+# ---------------------------------------------------------------------------
+# Upload library
+# ---------------------------------------------------------------------------
+
+_UPLOAD_ERROR_STATUS: dict[type[UploadError], int] = {
+    UnsupportedFileType: status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+    FileTooLarge: status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+    DuplicateDocument: status.HTTP_409_CONFLICT,
+}
+
+
+@app.get("/library/documents", response_model=list[DocumentSummary], tags=["library"])
+def list_documents(library: DocumentLibrary = Depends(get_library)) -> list[DocumentSummary]:
+    """Every uploaded document."""
+    return library.documents()
+
+
+@app.post(
+    "/library/documents",
+    response_model=DocumentSummary,
+    status_code=status.HTTP_201_CREATED,
+    tags=["library"],
+)
+def upload_document(
+    file: UploadFile = File(..., description="A PDF, Markdown, text, or HTML file."),
+    library: DocumentLibrary = Depends(get_library),
+    _: None = Depends(require_api_key),
+) -> DocumentSummary:
+    """Upload one file and index it. Re-uploading a filename replaces that document."""
+    # Read one byte past the limit: enough to know it is too large without
+    # holding an arbitrarily large body in memory.
+    data = file.file.read(library.max_bytes + 1)
+    try:
+        return library.add(file.filename or "", data)
+    except UploadError as exc:
+        code = _UPLOAD_ERROR_STATUS.get(type(exc), status.HTTP_422_UNPROCESSABLE_ENTITY)
+        raise HTTPException(status_code=code, detail=str(exc)) from exc
+
+
+@app.delete(
+    "/library/documents/{doc_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_class=Response,
+    tags=["library"],
+)
+def delete_document(
+    doc_id: str,
+    library: DocumentLibrary = Depends(get_library),
+    _: None = Depends(require_api_key),
+) -> Response:
+    """Remove a document from the library and delete its file."""
+    try:
+        library.delete(doc_id)
+    except DocumentNotFound as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=f"No document {doc_id!r}"
+        ) from exc
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@app.post("/library/ask", response_model=AskResponse, tags=["library"])
+def ask_library(
+    request: LibraryAskRequest,
+    library: DocumentLibrary = Depends(get_library),
+    _: None = Depends(require_api_key),
+) -> AskResponse:
+    """Answer from uploaded documents, or abstain."""
+    if library.is_empty():
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="The library is empty. POST /library/documents first.",
+        )
+    try:
+        answer = library.ask(request.question, doc_ids=request.doc_ids, top_n=request.top_n)
+    except DocumentNotFound as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=f"Unknown document(s): {exc.args[0]}"
+        ) from exc
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
+        ) from exc
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("generation failed")
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Generation failed: {type(exc).__name__}",
+        ) from exc
+    return _to_response(answer, request.include_retrieval)

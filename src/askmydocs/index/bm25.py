@@ -13,7 +13,7 @@ keyword and vector legs drifting out of sync.
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Sequence, Set
 
 from askmydocs.models import Chunk
 from askmydocs.text import lexical_tokens
@@ -54,8 +54,12 @@ class BM25Index:
 
     # -- search ------------------------------------------------------------
 
-    def query(self, text: str, k: int) -> list[ScoredId]:
-        """Return the top-``k`` (chunk_id, score) pairs. Raw BM25 scores."""
+    def query(self, text: str, k: int, allowed: Set[str] | None = None) -> list[ScoredId]:
+        """Return the top-``k`` (chunk_id, score) pairs. Raw BM25 scores.
+
+        ``allowed`` restricts results to those chunk ids. It filters *before* the
+        top-``k`` cut, so a small document is not crowded out by a large corpus.
+        """
         if self._bm25 is None or k <= 0:
             return []
         tokens = lexical_tokens(text)
@@ -64,7 +68,11 @@ class BM25Index:
 
         scores: Sequence[float] = self._bm25.get_scores(tokens)
         ranked = sorted(
-            ((self._ids[i], float(score)) for i, score in enumerate(scores) if score > 0.0),
+            (
+                (self._ids[i], float(score))
+                for i, score in enumerate(scores)
+                if score > 0.0 and (allowed is None or self._ids[i] in allowed)
+            ),
             key=lambda pair: pair[1],
             reverse=True,
         )

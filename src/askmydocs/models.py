@@ -125,6 +125,17 @@ class Answer(BaseModel):
         return [c.chunk_id for c in self.citations]
 
 
+class DocumentSummary(BaseModel):
+    """One document in the upload library, as listed to a user."""
+
+    doc_id: str
+    filename: str
+    title: str = ""
+    content_type: str = ""
+    chunks: int = 0
+    size_bytes: int = 0
+
+
 class IngestReport(BaseModel):
     """Summary returned by an ingestion run."""
 

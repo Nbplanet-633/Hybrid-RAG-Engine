@@ -55,6 +55,12 @@ SAMPLE_DOC = textwrap.dedent(
 )
 
 
+@pytest.fixture(autouse=True)
+def _isolate_uploads(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Point the upload library at tmp_path, so no test touches ./storage/uploads."""
+    monkeypatch.setenv("ASKMYDOCS_UPLOADS_DIR", str(tmp_path / "uploads"))
+
+
 @pytest.fixture
 def corpus_dir(tmp_path: Path) -> Path:
     """A two-document corpus on disk."""

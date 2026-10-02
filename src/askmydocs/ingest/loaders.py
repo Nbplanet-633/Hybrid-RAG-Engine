@@ -58,11 +58,11 @@ def _title_from_markdown(text: str, fallback: str) -> str:
     return fallback
 
 
-def _load_markdown(path: Path) -> Document:
+def _load_markdown(path: Path, source: str | None = None) -> Document:
     raw = path.read_text(encoding="utf-8", errors="replace")
     meta, body = _parse_frontmatter(raw)
     title = str(meta.get("title") or _title_from_markdown(body, path.stem))
-    source = path.as_posix()
+    source = source or path.as_posix()
     return Document(
         doc_id=str(meta.get("doc_id") or _doc_id(source)),
         source=source,
@@ -73,8 +73,8 @@ def _load_markdown(path: Path) -> Document:
     )
 
 
-def _load_text(path: Path) -> Document:
-    source = path.as_posix()
+def _load_text(path: Path, source: str | None = None) -> Document:
+    source = source or path.as_posix()
     return Document(
         doc_id=_doc_id(source),
         source=source,
@@ -84,7 +84,7 @@ def _load_text(path: Path) -> Document:
     )
 
 
-def _load_pdf(path: Path) -> Document:
+def _load_pdf(path: Path, source: str | None = None) -> Document:
     try:
         from pypdf import PdfReader
     except ImportError as exc:  # pragma: no cover - exercised only without the extra
@@ -102,7 +102,7 @@ def _load_pdf(path: Path) -> Document:
             pages.append(f"## Page {number}\n\n{content}")
 
     info = reader.metadata or {}
-    source = path.as_posix()
+    source = source or path.as_posix()
     return Document(
         doc_id=_doc_id(source),
         source=source,
@@ -147,9 +147,9 @@ def _html_to_text(html: str) -> tuple[str, str]:
     return title, "\n\n".join(lines)
 
 
-def _load_html(path: Path) -> Document:
+def _load_html(path: Path, source: str | None = None) -> Document:
     title, text = _html_to_text(path.read_text(encoding="utf-8", errors="replace"))
-    source = path.as_posix()
+    source = source or path.as_posix()
     return Document(
         doc_id=_doc_id(source),
         source=source,
@@ -167,12 +167,17 @@ _LOADERS = [
 ]
 
 
-def load_file(path: Path) -> Document:
-    """Load a single file, dispatching on its suffix."""
+def load_file(path: Path, source: str | None = None) -> Document:
+    """Load a single file, dispatching on its suffix.
+
+    ``source`` overrides the recorded source path (and so the derived doc_id).
+    The upload library uses it to parse a staged temp file under the name the
+    document will have once it is committed.
+    """
     suffix = path.suffix.lower()
     for suffixes, loader in _LOADERS:
         if suffix in suffixes:
-            return loader(path)
+            return loader(path, source)
     raise ValueError(
         f"Unsupported file type {suffix!r} for {path}. "
         f"Supported: {', '.join(sorted(SUPPORTED_SUFFIXES))}"

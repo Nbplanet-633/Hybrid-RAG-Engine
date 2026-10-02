@@ -191,3 +191,116 @@ class TestApiKeyAuth:
                 headers={"X-API-Key": "s3cret"},
             )
             assert ok.status_code == 200
+
+
+POLICY_MD = b"""# Leave Policy
+
+## Notice period
+
+The notice period for resignation is 60 days for permanent staff.
+"""
+
+
+def _upload(client: TestClient, name: str, data: bytes, **kwargs):
+    return client.post("/library/documents", files={"file": (name, data)}, **kwargs)
+
+
+class TestLibrary:
+    def test_library_starts_empty_and_separate_from_the_corpus(self, client: TestClient) -> None:
+        # The corpus is indexed by the fixture; the library must not see it.
+        assert client.get("/library/documents").json() == []
+        response = client.post("/library/ask", json={"question": "What is the refund window?"})
+        assert response.status_code == 409
+        assert "empty" in response.json()["detail"].lower()
+
+    def test_upload_list_ask_delete_round_trip(self, client: TestClient) -> None:
+        created = _upload(client, "leave-policy.md", POLICY_MD)
+        assert created.status_code == 201
+        doc = created.json()
+        assert doc["filename"] == "leave-policy.md"
+        assert doc["chunks"] >= 1
+
+        assert [d["doc_id"] for d in client.get("/library/documents").json()] == [doc["doc_id"]]
+
+        answer = client.post(
+            "/library/ask",
+            json={"question": "What is the notice period?", "doc_ids": [doc["doc_id"]]},
+        ).json()
+        assert answer["abstained"] is False
+        assert "60 days" in answer["answer"]
+        assert answer["citations"][0]["source"].endswith("leave-policy.md")
+
+        assert client.delete(f"/library/documents/{doc['doc_id']}").status_code == 204
+        assert client.get("/library/documents").json() == []
+        assert client.delete(f"/library/documents/{doc['doc_id']}").status_code == 404
+
+    def test_corpus_ask_is_unaffected_by_uploads(self, client: TestClient) -> None:
+        _upload(client, "leave-policy.md", POLICY_MD)
+        body = client.post(
+            "/ask", json={"question": "What is the notice period?", "include_retrieval": True}
+        ).json()
+        assert all(not r["source"].endswith("leave-policy.md") for r in body["retrieval"] or [])
+
+    @pytest.mark.parametrize(
+        ("name", "data", "code"),
+        [
+            ("photo.png", b"\x89PNG\r\n", 415),
+            ("empty.md", b"", 422),
+            ("broken.pdf", b"not a pdf", 422),
+        ],
+    )
+    def test_bad_uploads_get_a_specific_status(
+        self, client: TestClient, name: str, data: bytes, code: int
+    ) -> None:
+        response = _upload(client, name, data)
+        assert response.status_code == code
+        assert response.json()["detail"]
+
+    def test_oversized_upload_is_413(
+        self, tmp_path: Path, corpus_dir: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("ASKMYDOCS_PROFILE", "offline")
+        monkeypatch.setenv("ASKMYDOCS_CONFIG", str(REPO_ROOT / "config" / "app.yaml"))
+        monkeypatch.setenv("ASKMYDOCS_STORAGE_DIR", str(tmp_path / "storage"))
+        monkeypatch.setenv("ASKMYDOCS_MAX_UPLOAD_MB", "0.001")
+
+        from askmydocs.api.main import app
+
+        with TestClient(app) as client:
+            response = _upload(client, "big.md", b"# Big\n\n" + b"word " * 1000)
+        assert response.status_code == 413
+
+    def test_duplicate_doc_id_is_a_conflict(self, client: TestClient) -> None:
+        doc = b"---\ndoc_id: shared\n---\n\n# One\n\nSome content here.\n"
+        assert _upload(client, "one.md", doc).status_code == 201
+        assert _upload(client, "two.md", doc).status_code == 409
+
+    def test_asking_an_unknown_document_is_404(self, client: TestClient) -> None:
+        _upload(client, "leave-policy.md", POLICY_MD)
+        response = client.post(
+            "/library/ask", json={"question": "notice period", "doc_ids": ["nope"]}
+        )
+        assert response.status_code == 404
+
+    def test_empty_doc_ids_list_is_a_validation_error(self, client: TestClient) -> None:
+        _upload(client, "leave-policy.md", POLICY_MD)
+        response = client.post("/library/ask", json={"question": "notice", "doc_ids": []})
+        assert response.status_code == 422
+
+    def test_mutations_require_the_api_key_when_configured(
+        self, tmp_path: Path, corpus_dir: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("ASKMYDOCS_PROFILE", "offline")
+        monkeypatch.setenv("ASKMYDOCS_CONFIG", str(REPO_ROOT / "config" / "app.yaml"))
+        monkeypatch.setenv("ASKMYDOCS_STORAGE_DIR", str(tmp_path / "storage"))
+        monkeypatch.setenv("ASKMYDOCS_API_KEY", "s3cret")
+
+        from askmydocs.api.main import app
+
+        with TestClient(app) as client:
+            assert _upload(client, "leave-policy.md", POLICY_MD).status_code == 401
+            ok = _upload(client, "leave-policy.md", POLICY_MD, headers={"X-API-Key": "s3cret"})
+            assert ok.status_code == 201
+            doc_id = ok.json()["doc_id"]
+            assert client.delete(f"/library/documents/{doc_id}").status_code == 401
+            assert client.post("/library/ask", json={"question": "notice"}).status_code == 401

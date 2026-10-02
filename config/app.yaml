@@ -14,6 +14,12 @@ profile: offline
 storage_dir: ./storage
 corpus_dir: ./data/corpus
 
+# Documents uploaded through the UI or API. A separate index from storage_dir, so
+# uploads never mix into the corpus the evaluation gate measures.
+uploads:
+  dir: ./storage/uploads
+  max_file_mb: 20
+
 ingest:
   # 500-800 token chunks with 100 tokens of overlap.
   chunk_target_tokens: 600
