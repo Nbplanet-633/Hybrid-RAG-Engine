@@ -9,7 +9,7 @@ description = "Production-grade domain-specific RAG: hybrid retrieval, cross-enc
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
-authors = [{ name = "Jadhav Roshan Vijay" }]
+authors = [{ name = "Neeraj Meena", email = "njmeena633725@gmail.com" }]
 keywords = ["rag", "retrieval-augmented-generation", "llm", "chromadb", "bm25", "evaluation"]
 
 dependencies = [
@@ -55,7 +55,8 @@ full = [
 askmydocs = "askmydocs.cli:app"
 
 [project.urls]
-Homepage = "https://github.com/your-handle/ask-my-docs"
+Homepage = "https://github.com/Nbplanet-633/Hybrid-RAG-Engine"
+Repository = "https://github.com/Nbplanet-633/Hybrid-RAG-Engine"
 
 [tool.setuptools.packages.find]
 where = ["src"]
