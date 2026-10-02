@@ -17,6 +17,7 @@ Profiles exist so the same code path can run two very different stacks:
 from __future__ import annotations
 
 import copy
+import importlib.util
 import os
 from pathlib import Path
 from typing import Any, Literal
@@ -187,6 +188,38 @@ class AppConfig(BaseModel):
         if self.vector_store.path:
             return Path(self.vector_store.path)
         return self.storage_path / self.vector_store.provider
+
+
+def missing_requirements(config: AppConfig) -> list[str]:
+    """What this configuration needs that the environment lacks, as user-facing lines.
+
+    Derived from the configured providers rather than profile names, so a custom
+    profile is checked correctly too. An empty list means it should start. Lets a
+    UI explain an unavailable profile up front instead of surfacing whatever
+    exception the first model load happens to raise.
+    """
+    packages: dict[str, str] = {}  # import name -> pip extra that provides it
+    keys: list[str] = []
+    if config.embedding.provider == "sentence-transformers":
+        packages["sentence_transformers"] = "models"
+    if config.vector_store.provider == "chroma":
+        packages["chromadb"] = "chroma"
+    if config.rerank.enabled and config.rerank.provider == "cross-encoder":
+        packages["sentence_transformers"] = "models"
+    if config.rerank.enabled and config.rerank.provider == "cohere":
+        packages["cohere"] = "cohere"
+        keys.append("COHERE_API_KEY")
+    if config.generation.provider == "anthropic":
+        packages["anthropic"] = "anthropic"
+        keys.append("ANTHROPIC_API_KEY")
+
+    missing = [
+        f'the `{module}` package (pip install -e ".[{extra}]")'
+        for module, extra in packages.items()
+        if importlib.util.find_spec(module) is None
+    ]
+    missing += [f"the {key} environment variable" for key in keys if not os.getenv(key)]
+    return missing
 
 
 def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:

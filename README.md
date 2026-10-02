@@ -131,7 +131,7 @@ gate — then prints a verdict:
   [ ok ] Answering works  cited 1 source(s), correct value returned
          Every formal dispute incurs a **€15.00 dispute fee**, charged when the dispute is opened. [S1]
   [ ok ] Refusing works  out-of-scope question abstained (low_relevance)
-  [ ok ] Test suite  300 passed in 5.88s
+  [ ok ] Test suite  305 passed in 22.65s
   [ ok ] Evaluation gate  12/12 thresholds met on 105 questions
 
   THE PROJECT IS WORKING ON THIS MACHINE.
@@ -181,7 +181,7 @@ make ask Q="Does Aurora support cryptocurrency payments?"
 ### Everything else
 
 ```bash
-make test              # 300 tests
+make test              # 305 tests
 make eval              # golden-set evaluation + threshold gate
 make validate-golden   # check the dataset's own labels
 make serve             # HTTP API on :8000, OpenAPI docs at /docs
@@ -248,10 +248,29 @@ extractable text, so a scanned PDF with no text layer is rejected with that expl
 is parsed from a hidden staging copy and only moved into place once it passes, so a rejected
 upload leaves nothing behind.
 
-In the `offline` profile, answers are the most relevant **sentences quoted** from your
-documents. Quoting cannot bridge vocabulary: ask how long you have to *respond* to a dispute and
-it misses the sentence that says you must *submit evidence* within 7 days. The `full` profile's
-embeddings and Claude generation close that gap and write the answer in prose.
+The sidebar's **Profile** picks the engine:
+
+| Profile | Search | Answers | Needs |
+|---|---|---|---|
+| Offline | hashed embeddings + keyword rerank | quoted sentences | nothing |
+| Full retrieval | MiniLM embeddings + cross-encoder rerank, run locally | quoted sentences | `pip install -e ".[models]"` |
+| Full | same as full retrieval | written by Claude | the above + `ANTHROPIC_API_KEY` |
+
+The UI defaults to **Full retrieval** when its packages are installed, since it is free and
+much better at matching meaning, and marks any profile this machine cannot run as
+"(not set up)" with what to install. The first switch to a profile downloads its models and
+re-indexes your uploads with them.
+
+Full retrieval improves **which passages are found**, not which sentence is quoted. Both quote
+modes pick the sentence by word overlap with the question, so the right passage can still yield
+the wrong sentence: ask how long you have to *respond* to a dispute and Full retrieval ranks the
+dispute-lifecycle passage first, then quotes its fee sentence instead of the one saying you must
+*submit evidence* within 7 days. Full, where Claude reads the passage and writes the answer, is
+the profile that closes that gap.
+
+On a laptop CPU, Full retrieval takes about 3 s per question against roughly 10 ms offline.
+Nearly all of it is the cross-encoder scoring ~20 candidate passages of ~600 tokens; embedding,
+search, and answer assembly together take about 130 ms.
 
 ---
 
@@ -525,7 +544,7 @@ data/
   golden/            105 validated question-answer pairs
 scripts/verify.py    one-command installation check
 eval/                metrics · runner + gate · label validator · Ragas cross-check
-tests/               300 tests
+tests/               305 tests
 ui/streamlit_app.py  demo UI
 ```
 

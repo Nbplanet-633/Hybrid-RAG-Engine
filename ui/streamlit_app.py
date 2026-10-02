@@ -18,6 +18,7 @@ reason, not as an error.
 from __future__ import annotations
 
 import sys
+import time
 from pathlib import Path
 
 import streamlit as st
@@ -25,7 +26,7 @@ import streamlit as st
 # Allow `streamlit run ui/streamlit_app.py` from the repo root without installing.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from askmydocs.config import load_config  # noqa: E402
+from askmydocs.config import load_config, missing_requirements  # noqa: E402
 from askmydocs.ingest.loaders import SUPPORTED_SUFFIXES  # noqa: E402
 from askmydocs.library import DocumentLibrary, UploadError  # noqa: E402
 
@@ -42,8 +43,23 @@ ABSTAIN_EXPLANATIONS = {
 }
 ALL_DOCUMENTS = "__all__"
 
+# Ordered cheapest first. The default is the best profile this machine can run
+# without an API key: full-retrieval when the model packages are installed.
+PROFILES = {
+    "offline": "Offline: keyword search, instant",
+    "full-retrieval": "Full retrieval: AI search models, free",
+    "full": "Full: AI search + Claude answers",
+}
+PROFILE_HELP = (
+    "**Offline**: hashed embeddings and keyword reranking. No downloads, no API key.  \n"
+    "**Full retrieval**: real embedding and cross-encoder models, run locally. No API "
+    "key; finds passages by meaning, not just shared words.  \n"
+    "**Full**: the same search, plus Claude to write the answer. Needs an Anthropic "
+    "API key."
+)
 
-@st.cache_resource(show_spinner="Loading your documents...")
+
+@st.cache_resource(show_spinner="Loading the search engine and indexing your documents...")
 def get_library(profile: str) -> DocumentLibrary:
     return DocumentLibrary(load_config(profile=profile))
 
@@ -69,19 +85,31 @@ def _add_files(library: DocumentLibrary, files: list[tuple[str, bytes]]) -> None
             st.success(f"Added **{summary.filename}** ({_chunks(summary.chunks)}).")
 
 
+missing = {name: missing_requirements(load_config(profile=name)) for name in PROFILES}
+
 with st.sidebar:
     st.title("Ask My Docs")
     st.caption("Upload documents, then ask questions. Every answer cites its source.")
 
     profile = st.selectbox(
         "Profile",
-        ["offline", "full"],
-        help=(
-            "offline: hashed embeddings, lexical rerank, extractive answers. Free, no API "
-            "key. full: sentence-transformers, cross-encoder, and Claude for written answers."
-        ),
+        list(PROFILES),
+        index=list(PROFILES).index("offline" if missing["full-retrieval"] else "full-retrieval"),
+        format_func=lambda name: PROFILES[name] + (" (not set up)" if missing[name] else ""),
+        help=PROFILE_HELP,
     )
 
+if missing[profile]:
+    st.header("Ask your documents")
+    st.warning(
+        f"**{PROFILES[profile].split(':')[0]}** isn't set up on this machine yet. It needs:\n\n"
+        + "\n".join(f"- {item}" for item in missing[profile])
+        + "\n\nInstall what's missing, then restart the app. Meanwhile, pick another "
+        "profile in the sidebar."
+    )
+    st.stop()
+
+with st.sidebar:
     try:
         library = get_library(profile)
     except Exception as exc:  # noqa: BLE001 - surface the cause in the UI
@@ -138,8 +166,8 @@ with st.sidebar:
     if stats["generator"].startswith("extractive"):
         st.info(
             "**Quote mode.** Answers are the most relevant sentences from your documents, "
-            "with citations. Switch to the **full** profile with an Anthropic API key for "
-            "written answers.",
+            "with citations. The **Full** profile writes answers in prose, and needs an "
+            "Anthropic API key.",
             icon="💬",
         )
     with st.expander("Engine details"):
@@ -183,11 +211,15 @@ if not question:
     st.stop()
 
 with st.spinner("Retrieving and generating..."):
+    # Time the whole question. Answer.latency_ms covers only generation, which
+    # hides the cross-encoder: it is ~95% of a full-retrieval answer on a CPU.
+    started = time.perf_counter()
     answer = library.ask(
         question,
         doc_ids=None if scope == ALL_DOCUMENTS else [scope],
         top_n=top_n,
     )
+    elapsed_ms = (time.perf_counter() - started) * 1000
 
 if answer.abstained:
     st.warning(f"**No answer returned.**\n\n{answer.text}")
@@ -206,7 +238,11 @@ else:
     a.metric("Confidence", f"{answer.confidence:.2f}")
     b.metric("Grounding", f"{answer.grounding_score:.2f}")
     c.metric("Citations", len(answer.citations))
-    d.metric("Latency", f"{answer.latency_ms:.0f} ms")
+    d.metric(
+        "Latency",
+        f"{elapsed_ms / 1000:.1f} s" if elapsed_ms >= 1000 else f"{elapsed_ms:.0f} ms",
+        help="Search, reranking, and answer, end to end.",
+    )
 
     st.subheader("Citations")
     for citation in answer.citations:
