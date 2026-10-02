@@ -62,7 +62,7 @@ def _load_markdown(path: Path) -> Document:
     raw = path.read_text(encoding="utf-8", errors="replace")
     meta, body = _parse_frontmatter(raw)
     title = str(meta.get("title") or _title_from_markdown(body, path.stem))
-    source = str(path)
+    source = path.as_posix()
     return Document(
         doc_id=str(meta.get("doc_id") or _doc_id(source)),
         source=source,
@@ -74,7 +74,7 @@ def _load_markdown(path: Path) -> Document:
 
 
 def _load_text(path: Path) -> Document:
-    source = str(path)
+    source = path.as_posix()
     return Document(
         doc_id=_doc_id(source),
         source=source,
@@ -102,7 +102,7 @@ def _load_pdf(path: Path) -> Document:
             pages.append(f"## Page {number}\n\n{content}")
 
     info = reader.metadata or {}
-    source = str(path)
+    source = path.as_posix()
     return Document(
         doc_id=_doc_id(source),
         source=source,
@@ -149,7 +149,7 @@ def _html_to_text(html: str) -> tuple[str, str]:
 
 def _load_html(path: Path) -> Document:
     title, text = _html_to_text(path.read_text(encoding="utf-8", errors="replace"))
-    source = str(path)
+    source = path.as_posix()
     return Document(
         doc_id=_doc_id(source),
         source=source,

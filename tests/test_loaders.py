@@ -53,6 +53,14 @@ class TestDirectoryLoading:
             "glossary.md",
         }
 
+    def test_sources_use_forward_slashes_on_every_os(self, corpus_dir: Path) -> None:
+        # The golden set records sources as POSIX paths; a backslash source on
+        # Windows silently zeroes every source-matching eval metric.
+        nested = corpus_dir / "sub"
+        nested.mkdir()
+        (nested / "deep.md").write_text("# Deep\n", encoding="utf-8")
+        assert all("\\" not in d.source for d in load_path(corpus_dir))
+
     def test_include_globs_filter(self, corpus_dir: Path) -> None:
         (corpus_dir / "notes.txt").write_text("plain text notes", encoding="utf-8")
         assert len(load_path(corpus_dir, include_globs=["**/*.md"])) == 2

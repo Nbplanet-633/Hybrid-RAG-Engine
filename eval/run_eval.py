@@ -307,7 +307,7 @@ def main(argv: list[str] | None = None) -> int:
     stats = pipeline.stats()
     report: dict[str, Any] = {
         "profile": config.profile,
-        "golden_set": str(args.golden),
+        "golden_set": args.golden.as_posix(),
         "generator": stats["generator"],
         "embedder": stats["embedder"],
         "reranker": stats["reranker"],

@@ -268,7 +268,7 @@ class TestShippedGoldenSet:
         golden.write_text(
             '{"id": "q1", "question": "What is the dispute fee?", '
             '"reference_answer": "The dispute fee is fifteen euros refunded on winning.", '
-            f'"expected_sources": ["{corpus / "a.md"}"], "answerable": true}}\n',
+            f'"expected_sources": ["{(corpus / "a.md").as_posix()}"], "answerable": true}}\n',
             encoding="utf-8",
         )
         errors, _ = validate(golden, corpus)

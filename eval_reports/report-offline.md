@@ -6,7 +6,7 @@
 - **Reranker**: `lexical`
 - **Prompt**: `answer.v2` (hash `82d4affe607d`)
 - **Golden set**: data/golden/golden_set.jsonl (105 questions)
-- **Run at**: 2026-08-18T17:54:26+00:00  ·  **Duration**: 1.37s
+- **Run at**: 2026-10-02T16:53:57+00:00  ·  **Duration**: 2.75s
 
 ## Gate: PASS
 
@@ -23,7 +23,7 @@
 | `abstention.abstention_recall` | 1.0000 | min=0.9 | pass |
 | `abstention.abstention_precision` | 0.7500 | min=0.65 | pass |
 | `abstention.false_abstention_rate` | 0.0430 | max=0.1 | pass |
-| `operational.latency_p95_ms` | 7.3500 | max=2000 | pass |
+| `operational.latency_p95_ms` | 14.9800 | max=2000 | pass |
 
 ## Retrieval
 
@@ -55,8 +55,8 @@
 
 | Metric | Value |
 |---|---|
-| `latency_p50_ms` | 5.6000 |
-| `latency_p95_ms` | 7.3500 |
+| `latency_p50_ms` | 11.3900 |
+| `latency_p95_ms` | 14.9800 |
 | `mean_input_tokens` | 610 |
 | `mean_output_tokens` | 19 |
 
