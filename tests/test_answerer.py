@@ -21,10 +21,12 @@ from askmydocs.generation.answerer import (
     REASON_NO_RESULTS,
     REASON_QUESTION_NOT_COVERED,
     Answerer,
+    claims_by_marker,
 )
 from askmydocs.generation.llm import GenerationRequest, LLMResponse
 from askmydocs.generation.prompts import PromptLibrary
 from askmydocs.models import Chunk, RetrievedChunk
+from askmydocs.pipeline import RAGPipeline
 
 REPO_PROMPTS = Path(__file__).resolve().parents[1] / "config" / "prompts"
 
@@ -328,3 +330,25 @@ class TestContextBudget:
         passages = [_retrieved(chunk_id=f"c{i}", text="x" * 500, score=0.9) for i in range(6)]
         answerer.answer(QUESTION, passages)
         assert len(llm.last_request.sources) < 6
+
+
+class TestCitationQuotes:
+    def test_claims_attach_to_the_sentence_that_cites_them(self) -> None:
+        claims = claims_by_marker("Refunds take 5 days [S1]. Disputes cost EUR 15 [S2][S1].")
+        assert claims["S2"].startswith("Disputes cost EUR 15")
+        assert "Refunds take 5 days" in claims["S1"] and "Disputes cost" in claims["S1"]
+
+    def test_a_marker_split_off_its_sentence_belongs_to_the_previous_one(self) -> None:
+        # Sentence splitting breaks after "evidence.**", stranding the marker.
+        claims = claims_by_marker("**You have 7 days to submit evidence.** [S1]")
+        assert claims == {"S1": "**You have 7 days to submit evidence.**"}
+
+    def test_the_quote_is_the_evidence_for_the_answer_not_the_question(
+        self, pipeline: RAGPipeline
+    ) -> None:
+        # The refund-window passage holds several sentences that share words with
+        # the question; the quote must be the one the answer actually used.
+        answer = pipeline.answer("How long do I have to request a refund?")
+        assert not answer.abstained
+        for citation in answer.citations:
+            assert citation.quote.strip("* ") in answer.text

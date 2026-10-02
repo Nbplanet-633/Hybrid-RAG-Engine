@@ -23,6 +23,15 @@ export interface LibraryInfo {
   samples_available: boolean;
 }
 
+export interface Passage {
+  chunk_id: string;
+  doc_id: string;
+  source: string;
+  title: string;
+  section: string;
+  text: string;
+}
+
 export interface SamplesResponse {
   added: DocumentSummary[];
   /** Filename -> why it was not added. */

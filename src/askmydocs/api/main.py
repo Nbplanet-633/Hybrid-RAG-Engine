@@ -20,6 +20,7 @@ Upload library — user documents, in an index separate from the evaluated corpu
 ``POST   /library/ask``                answer from the library, optionally from chosen documents
 ``POST   /library/samples``            add the bundled sample documents
 ``GET    /library/info``               active engine and upload limits, for a client to describe itself
+``GET    /library/passages/{chunk_id}``  one cited passage in full
 
 When ``api.frontend_dir`` holds a built React app, every other ``GET`` serves it,
 so the API and the UI deploy as one service.
@@ -60,6 +61,7 @@ from askmydocs.library import (
     DocumentNotFound,
     DuplicateDocument,
     FileTooLarge,
+    PassageNotFound,
     UnsupportedFileType,
     UploadError,
 )
@@ -153,6 +155,15 @@ class LibraryInfo(BaseModel):
     max_upload_bytes: int
     accepted_extensions: list[str]
     samples_available: bool
+
+
+class PassageOut(BaseModel):
+    chunk_id: str
+    doc_id: str
+    source: str
+    title: str = ""
+    section: str = ""
+    text: str
 
 
 class SamplesResponse(BaseModel):
@@ -531,6 +542,25 @@ def library_info(library: DocumentLibrary = Depends(get_library)) -> LibraryInfo
         max_upload_bytes=library.max_bytes,
         accepted_extensions=sorted(SUPPORTED_SUFFIXES),
         samples_available=Path(config.corpus_dir).is_dir(),
+    )
+
+
+@app.get("/library/passages/{chunk_id}", response_model=PassageOut, tags=["library"])
+def get_passage(chunk_id: str, library: DocumentLibrary = Depends(get_library)) -> PassageOut:
+    """The full text of one passage, as cited by ``chunk_id`` in an answer."""
+    try:
+        chunk = library.passage(chunk_id)
+    except PassageNotFound as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=f"No passage {chunk_id!r}"
+        ) from exc
+    return PassageOut(
+        chunk_id=chunk.chunk_id,
+        doc_id=chunk.doc_id,
+        source=chunk.source,
+        title=chunk.title,
+        section=chunk.section,
+        text=chunk.text,
     )
 
 

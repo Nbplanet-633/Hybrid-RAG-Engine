@@ -3,6 +3,7 @@ import type {
   AskResponse,
   DocumentSummary,
   LibraryInfo,
+  Passage,
   SamplesResponse,
 } from "./types";
 
@@ -61,6 +62,9 @@ export const api = {
 
   deleteDocument: (docId: string) =>
     request<void>(`/library/documents/${encodeURIComponent(docId)}`, { method: "DELETE" }),
+
+  passage: (chunkId: string) =>
+    request<Passage>(`/library/passages/${encodeURIComponent(chunkId)}`),
 
   addSamples: () => request<SamplesResponse>("/library/samples", { method: "POST" }),
 

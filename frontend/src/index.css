@@ -1,5 +1,9 @@
 @import "tailwindcss";
 
+/* Dark mode follows a class on <html> (set by theme.ts and the inline script in
+   index.html) rather than the media query, so the user can override the system. */
+@custom-variant dark (&:where(.dark, .dark *));
+
 @layer base {
   html {
     color-scheme: light dark;

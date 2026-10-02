@@ -413,3 +413,30 @@ class TestFrontendServing:
 
     def test_without_a_build_the_root_is_404(self, client: TestClient) -> None:
         assert client.get("/", headers=HTML).status_code == 404
+
+
+class TestPassages:
+    def test_a_cited_passage_can_be_fetched_in_full(self, client: TestClient) -> None:
+        client.post("/library/samples")
+        answer = client.post(
+            "/library/ask", json={"question": "How long do I have to request a refund?"}
+        ).json()
+        citation = answer["citations"][0]
+
+        passage = client.get(f"/library/passages/{citation['chunk_id']}").json()
+        assert passage["chunk_id"] == citation["chunk_id"]
+        assert passage["source"] == citation["source"]
+        # The quote is one sentence of the passage, so the passage contains it.
+        assert citation["quote"] in passage["text"]
+        assert len(passage["text"]) > len(citation["quote"])
+
+    def test_unknown_passage_is_404(self, client: TestClient) -> None:
+        assert client.get("/library/passages/nope::0000").status_code == 404
+
+    def test_corpus_passages_are_not_exposed_through_the_library(self, client: TestClient) -> None:
+        # The fixture indexes the corpus, not the library; its chunks stay private.
+        corpus_answer = client.post(
+            "/ask", json={"question": "How long do I have to request a refund?"}
+        ).json()
+        chunk_id = corpus_answer["citations"][0]["chunk_id"]
+        assert client.get(f"/library/passages/{chunk_id}").status_code == 404

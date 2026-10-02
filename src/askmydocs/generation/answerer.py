@@ -39,7 +39,13 @@ from askmydocs.config import CitationConfig, GenerationConfig
 from askmydocs.generation.llm import LLM, GenerationRequest, SourceBlock
 from askmydocs.generation.prompts import PromptLibrary
 from askmydocs.models import Answer, Citation, RetrievedChunk, TokenUsage
-from askmydocs.text import best_sentence, overlap_ratio, topical_tokens, truncate
+from askmydocs.text import (
+    best_sentence,
+    overlap_ratio,
+    split_sentences,
+    topical_tokens,
+    truncate,
+)
 
 _MARKER_RE = re.compile(r"\[\s*S(\d+)\s*\]", re.IGNORECASE)
 
@@ -52,6 +58,25 @@ REASON_NO_CITATIONS = "no_citations"
 REASON_LOW_GROUNDING = "low_grounding"
 REASON_EMPTY_RESPONSE = "empty_response"
 REASON_QUESTION_NOT_COVERED = "question_not_covered"
+
+
+def claims_by_marker(text: str) -> dict[str, str]:
+    """Map each ``S#`` marker to the answer prose it is cited for, markers stripped.
+
+    A marker supports the sentence it sits in. One that ends up alone after
+    sentence splitting ("...evidence.** [S1]" splits after the period) belongs to
+    the sentence before it.
+    """
+    claims: dict[str, list[str]] = {}
+    previous = ""
+    for sentence in split_sentences(text):
+        prose = _MARKER_RE.sub("", sentence).strip()
+        claim = prose or previous
+        for match in _MARKER_RE.finditer(sentence):
+            claims.setdefault(f"S{match.group(1)}", []).append(claim)
+        if prose:
+            previous = prose
+    return {marker: " ".join(parts) for marker, parts in claims.items()}
 
 
 class Answerer:
@@ -286,6 +311,11 @@ class Answerer:
                 question, REASON_LOW_GROUNDING, retrieved, started, usage, grounding
             )
 
+        # Quote the passage sentence closest to the claim each source is cited for,
+        # not to the question: a passage can answer several questions, and the
+        # quote has to show the evidence for *this* answer. For a quoted answer
+        # that is the identical sentence; for a generated one, its best support.
+        claims = claims_by_marker(text)
         citations = [
             Citation(
                 marker=block.marker,
@@ -295,7 +325,9 @@ class Answerer:
                     (c.chunk.title for c in eligible if c.chunk.chunk_id == block.chunk_id), ""
                 ),
                 section=block.section,
-                quote=truncate(best_sentence(question, block.text), 320),
+                quote=truncate(
+                    best_sentence(claims.get(block.marker) or question, block.text), 320
+                ),
                 score=block.score,
             )
             for block in cited_blocks

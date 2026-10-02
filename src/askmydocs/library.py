@@ -37,7 +37,7 @@ from pathlib import Path
 
 from askmydocs.config import AppConfig
 from askmydocs.ingest.loaders import SUPPORTED_SUFFIXES, load_file
-from askmydocs.models import Answer, Document, DocumentSummary
+from askmydocs.models import Answer, Chunk, Document, DocumentSummary
 from askmydocs.pipeline import RAGPipeline
 
 logger = logging.getLogger("askmydocs.library")
@@ -74,6 +74,10 @@ class DuplicateDocument(UploadError):
 
 class DocumentNotFound(KeyError):
     """No document with that id is in the library."""
+
+
+class PassageNotFound(KeyError):
+    """No chunk with that id is in the library."""
 
 
 def safe_filename(name: str) -> str:
@@ -144,6 +148,14 @@ class DocumentLibrary:
             if record is None:
                 raise DocumentNotFound(doc_id)
             return self._summary(doc_id, record)
+
+    def passage(self, chunk_id: str) -> Chunk:
+        """One indexed chunk, so a client can show a citation's full context."""
+        with self._lock:
+            chunk = self.pipeline.chunk_store.get(chunk_id)
+        if chunk is None:
+            raise PassageNotFound(chunk_id)
+        return chunk
 
     def is_empty(self) -> bool:
         with self._lock:

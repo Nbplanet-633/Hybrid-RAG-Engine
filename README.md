@@ -131,7 +131,7 @@ gate — then prints a verdict:
   [ ok ] Answering works  cited 1 source(s), correct value returned
          Every formal dispute incurs a **€15.00 dispute fee**, charged when the dispute is opened. [S1]
   [ ok ] Refusing works  out-of-scope question abstained (low_relevance)
-  [ ok ] Test suite  305 passed in 22.65s
+  [ ok ] Test suite  324 passed in 28.44s
   [ ok ] Evaluation gate  12/12 thresholds met on 105 questions
 
   THE PROJECT IS WORKING ON THIS MACHINE.
@@ -181,7 +181,7 @@ make ask Q="Does Aurora support cryptocurrency payments?"
 ### Everything else
 
 ```bash
-make test              # 305 tests
+make test              # 324 tests
 make eval              # golden-set evaluation + threshold gate
 make validate-golden   # check the dataset's own labels
 make serve             # HTTP API on :8000, OpenAPI docs at /docs
@@ -238,6 +238,14 @@ The older Streamlit demo (`make ui`, :8501) still works and uses the same librar
    **Choose files**. No document to hand? **Try with sample documents** loads the demo corpus.
 2. Pick **Search in**: all documents, or just one.
 3. Ask. The answer cites the file and section it came from, or the system declines and says why.
+   Earlier questions stay on screen, newest first. Each is answered independently: follow-ups
+   are not rewritten using the conversation yet.
+4. Open **Show full passage** on a source to read it in context with the quoted sentence marked,
+   or **How this was found** to see every passage the reranker scored and whether meaning search,
+   keyword search, or both surfaced it.
+
+Each source's quote is the passage sentence that best supports the answer sentence citing it,
+not the one most similar to the question, since a passage often answers several questions.
 
 Re-uploading a filename replaces that document; the 🗑 button removes one.
 
@@ -516,6 +524,7 @@ make serve   # OpenAPI docs at http://localhost:8000/docs
 | `POST` | `/library/ask` | Answer from uploads; `doc_ids` limits it to chosen documents |
 | `POST` | `/library/samples` | Add the bundled sample documents (repeatable) |
 | `GET` | `/library/info` | Active profile, models, answer mode (`quote`/`generate`), upload limits |
+| `GET` | `/library/passages/{chunk_id}` | One cited passage in full, for showing a quote in context |
 
 ```bash
 curl -s localhost:8000/ask -H 'content-type: application/json' \
@@ -567,7 +576,7 @@ data/
   golden/            105 validated question-answer pairs
 scripts/verify.py    one-command installation check
 eval/                metrics · runner + gate · label validator · Ragas cross-check
-tests/               305 tests
+tests/               324 tests
 frontend/            React + TypeScript web app (Vite, Tailwind, TanStack Query)
 ui/streamlit_app.py  Streamlit demo UI
 ```

@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useState } from "react";
 
 import { api } from "./client";
-import type { AskRequest, LibraryInfo } from "./types";
+import type { LibraryInfo } from "./types";
 
 const keys = {
   info: ["library", "info"] as const,
@@ -23,6 +23,16 @@ function useInvalidateLibrary() {
   return useCallback(() => queryClient.invalidateQueries({ queryKey: ["library"] }), [queryClient]);
 }
 
+/** A cited passage in full, fetched only once the user asks to see it. */
+export function usePassage(chunkId: string, enabled: boolean) {
+  return useQuery({
+    queryKey: ["library", "passage", chunkId],
+    queryFn: () => api.passage(chunkId),
+    enabled,
+    staleTime: Infinity,
+  });
+}
+
 export function useDeleteDocument() {
   const invalidate = useInvalidateLibrary();
   return useMutation({ mutationFn: api.deleteDocument, onSettled: invalidate });
@@ -31,10 +41,6 @@ export function useDeleteDocument() {
 export function useAddSamples() {
   const invalidate = useInvalidateLibrary();
   return useMutation({ mutationFn: api.addSamples, onSettled: invalidate });
-}
-
-export function useAsk() {
-  return useMutation({ mutationFn: (body: AskRequest) => api.ask(body) });
 }
 
 let uploadSeq = 0;
