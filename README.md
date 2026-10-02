@@ -8,6 +8,9 @@ citation-enforced generation, with a 105-question golden dataset wired into CI a
 gate. Every returned answer carries a resolvable source citation, or the system abstains and
 says why.
 
+**Upload your own PDF, Markdown, text, or HTML files** in the web UI or over the API and ask
+questions about them. See [Ask your own documents](#ask-your-own-documents).
+
 ```
                     ┌──────────────────────────────────────────────┐
    documents ──────▶│ INGEST                                       │
@@ -128,7 +131,7 @@ gate — then prints a verdict:
   [ ok ] Answering works  cited 1 source(s), correct value returned
          Every formal dispute incurs a **€15.00 dispute fee**, charged when the dispute is opened. [S1]
   [ ok ] Refusing works  out-of-scope question abstained (low_relevance)
-  [ ok ] Test suite  257 passed in 0.85s
+  [ ok ] Test suite  300 passed in 5.88s
   [ ok ] Evaluation gate  12/12 thresholds met on 105 questions
 
   THE PROJECT IS WORKING ON THIS MACHINE.
@@ -178,7 +181,7 @@ make ask Q="Does Aurora support cryptocurrency payments?"
 ### Everything else
 
 ```bash
-make test              # 255 tests
+make test              # 300 tests
 make eval              # golden-set evaluation + threshold gate
 make validate-golden   # check the dataset's own labels
 make serve             # HTTP API on :8000, OpenAPI docs at /docs
@@ -206,7 +209,49 @@ make eval-full
 ```bash
 docker compose up api                          # offline profile, :8000
 docker compose --profile full up api-full      # Claude-backed, :8001, needs ANTHROPIC_API_KEY
+docker compose --profile ui up ui              # Streamlit demo, :8501
 ```
+
+---
+
+## Ask your own documents
+
+```bash
+make ui      # http://localhost:8501
+```
+
+1. Drop PDF, Markdown, text, or HTML files into **Your documents** in the sidebar and click
+   **Add to library**. No document to hand? **Try with sample documents** loads the demo corpus.
+2. Pick **Search in**: all documents, or just one.
+3. Ask. The answer cites the file and section it came from, or the system declines and says why.
+
+Re-uploading a filename replaces that document; the 🗑 button removes one.
+
+**Uploads live in their own index, never in the evaluated corpus.** The evaluation harness
+grades whatever is indexed under `storage_dir`, so if uploads went there, every eval run would
+also search them and the retrieval metrics would move for reasons unrelated to the code. The
+library keeps its files and index under `uploads.dir` instead:
+
+```
+storage/uploads/files/             the uploaded files (git-ignored), shared by every profile
+storage/uploads/index/<profile>/   that profile's chunks, vectors, and manifest
+```
+
+Files are the source of truth. Each profile's index is rebuilt from them on start-up, by content
+hash, so switching from `offline` to `full` re-indexes the same library with the new embedder
+rather than losing it.
+
+**Every upload is validated before it touches the library**: an allow-listed extension, a size
+limit (`uploads.max_file_mb`, 20 MB by default), a sanitised filename (directory parts and
+reserved device names stripped, so `..\..\x.md` cannot escape the library), and at least some
+extractable text, so a scanned PDF with no text layer is rejected with that explanation. The file
+is parsed from a hidden staging copy and only moved into place once it passes, so a rejected
+upload leaves nothing behind.
+
+In the `offline` profile, answers are the most relevant **sentences quoted** from your
+documents. Quoting cannot bridge vocabulary: ask how long you have to *respond* to a dispute and
+it misses the sentence that says you must *submit evidence* within 7 days. The `full` profile's
+embeddings and Claude generation close that gap and write the answer in prose.
 
 ---
 
@@ -432,14 +477,28 @@ make serve   # OpenAPI docs at http://localhost:8000/docs
 | `GET` | `/readyz` | Readiness — **503 while the index is empty**, since such a node could only abstain |
 | `GET` | `/stats` | Index and configuration state |
 | `GET` | `/prompts` | Prompt registry and the active version |
+| `GET` | `/library/documents` | List uploaded documents |
+| `POST` | `/library/documents` | Upload one file (multipart `file`) and index it |
+| `DELETE` | `/library/documents/{doc_id}` | Remove a document and its file |
+| `POST` | `/library/ask` | Answer from uploads; `doc_ids` limits it to chosen documents |
 
 ```bash
 curl -s localhost:8000/ask -H 'content-type: application/json' \
   -d '{"question":"What is the dispute fee?","include_retrieval":true}' | jq
 ```
 
-Set `ASKMYDOCS_API_KEY` to require an `X-API-Key` header on `/ask` and `/ingest`; the ops
-endpoints stay open so health checks keep working without the secret.
+```bash
+curl -s localhost:8000/library/documents -F file=@handbook.pdf | jq     # -> {"doc_id": ...}
+curl -s localhost:8000/library/ask -H 'content-type: application/json' \
+  -d '{"question":"What is the notice period?","doc_ids":["<doc_id>"]}' | jq
+```
+
+A rejected upload gets a specific status: `415` unsupported type, `413` over the size limit,
+`409` a second file claiming an existing `doc_id`, `422` no readable text.
+
+Set `ASKMYDOCS_API_KEY` to require an `X-API-Key` header on `/ask`, `/ingest`, and the library
+endpoints that upload, delete, or ask; the ops endpoints stay open so health checks keep working
+without the secret.
 
 ---
 
@@ -451,6 +510,7 @@ src/askmydocs/
   text.py            tokenising, stemming, sentence splitting, similarity
   models.py          Pydantic types shared by the API, stores, and eval
   pipeline.py        the facade; ingestion, manifest, query path
+  library.py         upload library: validation, its own index, per-document scoping
   ingest/            loaders (md/pdf/html/txt) · structural chunker
   index/             chunk store · embeddings · vector stores · BM25 · RRF fusion
   rerank/            cross-encoder · Cohere · IDF-lexical
@@ -465,7 +525,7 @@ data/
   golden/            105 validated question-answer pairs
 scripts/verify.py    one-command installation check
 eval/                metrics · runner + gate · label validator · Ragas cross-check
-tests/               255 tests
+tests/               300 tests
 ui/streamlit_app.py  demo UI
 ```
 
@@ -498,7 +558,11 @@ different embedding model returns confident nonsense, so that mismatch raises
   corpus but in an unrelated combination can slip through. On the golden set the refusal
   sentinel catches those; without an LLM there is no second line of defence.
 - **No reranker score calibration.** Thresholds are tuned per profile on this corpus and would
-  need re-tuning on another.
+  need re-tuning on another. That includes the upload library, which uses the same thresholds:
+  on very different documents, expect some over- or under-refusal.
+- **The upload library is single-user.** One lock serialises uploads and questions, which is
+  correct for one person's documents but not a multi-tenant service; that would want per-user
+  libraries and a real database.
 
 ## License
 

@@ -12,6 +12,7 @@ services:
     environment:
       ASKMYDOCS_PROFILE: offline
       ASKMYDOCS_STORAGE_DIR: /data/storage
+      ASKMYDOCS_UPLOADS_DIR: /data/uploads
     ports:
       - "8000:8000"
     volumes:
@@ -31,6 +32,7 @@ services:
     environment:
       ASKMYDOCS_PROFILE: full
       ASKMYDOCS_STORAGE_DIR: /data/storage
+      ASKMYDOCS_UPLOADS_DIR: /data/uploads
       # Required by the full profile's Claude generator. Fails fast if unset.
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:?ANTHROPIC_API_KEY is required for the full profile}
     ports:
@@ -52,11 +54,14 @@ services:
     environment:
       ASKMYDOCS_PROFILE: offline
       ASKMYDOCS_STORAGE_DIR: /data/storage
+      # Shared with the api service, so both see the same upload library.
+      ASKMYDOCS_UPLOADS_DIR: /data/uploads
     ports:
       - "8501:8501"
     volumes:
       - index-data:/data
       - ./ui:/app/ui:ro
+      - ./.streamlit:/app/.streamlit:ro
       - ./data/corpus:/app/data/corpus:ro
 
 volumes:
