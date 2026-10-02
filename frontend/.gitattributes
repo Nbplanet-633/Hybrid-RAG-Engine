@@ -1,0 +1,2 @@
+# Prettier enforces LF; keep it on checkout too, or a Windows clone fails format:check.
+* text=auto eol=lf
