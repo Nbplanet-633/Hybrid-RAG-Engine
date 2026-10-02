@@ -304,3 +304,112 @@ class TestLibrary:
             doc_id = ok.json()["doc_id"]
             assert client.delete(f"/library/documents/{doc_id}").status_code == 401
             assert client.post("/library/ask", json={"question": "notice"}).status_code == 401
+
+
+class TestLibraryInfoAndSamples:
+    def test_info_describes_the_engine_and_upload_limits(self, client: TestClient) -> None:
+        body = client.get("/library/info").json()
+        assert body["profile"] == "offline"
+        assert body["answer_mode"] == "quote"
+        assert body["generator"].startswith("extractive")
+        assert body["documents"] == 0
+        assert body["max_upload_bytes"] == 20 * 1024 * 1024
+        assert ".pdf" in body["accepted_extensions"]
+        assert body["samples_available"] is True
+
+    def test_samples_load_the_corpus_into_the_library_idempotently(
+        self, client: TestClient
+    ) -> None:
+        first = client.post("/library/samples").json()
+        assert sorted(d["filename"] for d in first["added"]) == ["glossary.md", "handbook.md"]
+        assert first["rejected"] == {}
+
+        again = client.post("/library/samples").json()
+        assert len(again["added"]) == 2
+        assert len(client.get("/library/documents").json()) == 2
+        assert client.get("/library/info").json()["documents"] == 2
+
+    def test_samples_404_when_the_server_has_none(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("ASKMYDOCS_PROFILE", "offline")
+        monkeypatch.setenv("ASKMYDOCS_CONFIG", str(REPO_ROOT / "config" / "app.yaml"))
+        monkeypatch.setenv("ASKMYDOCS_STORAGE_DIR", str(tmp_path / "storage"))
+        monkeypatch.setenv("ASKMYDOCS_CORPUS_DIR", str(tmp_path / "missing"))
+
+        from askmydocs.api.main import app
+
+        with TestClient(app) as client:
+            assert client.get("/library/info").json()["samples_available"] is False
+            assert client.post("/library/samples").status_code == 404
+
+    def test_answers_report_end_to_end_time(self, client: TestClient) -> None:
+        client.post("/library/samples")
+        body = client.post("/library/ask", json={"question": "What is the refund window?"}).json()
+        # total_ms covers retrieval and reranking too, so it can never be the smaller.
+        assert body["total_ms"] >= body["latency_ms"] > 0
+
+
+@pytest.fixture
+def frontend_dist(tmp_path: Path) -> Path:
+    dist = tmp_path / "dist"
+    (dist / "assets").mkdir(parents=True)
+    (dist / "index.html").write_text("<!doctype html><div id=root></div>", encoding="utf-8")
+    (dist / "assets" / "app.js").write_text("console.log('app')", encoding="utf-8")
+    (tmp_path / "secret.txt").write_text("do not serve", encoding="utf-8")
+    return dist
+
+
+@pytest.fixture
+def app_client(
+    tmp_path: Path, corpus_dir: Path, frontend_dist: Path, monkeypatch: pytest.MonkeyPatch
+) -> Iterator[TestClient]:
+    monkeypatch.setenv("ASKMYDOCS_PROFILE", "offline")
+    monkeypatch.setenv("ASKMYDOCS_CONFIG", str(REPO_ROOT / "config" / "app.yaml"))
+    monkeypatch.setenv("ASKMYDOCS_STORAGE_DIR", str(tmp_path / "storage"))
+    monkeypatch.setenv("ASKMYDOCS_CORPUS_DIR", str(corpus_dir))
+    monkeypatch.setenv("ASKMYDOCS_FRONTEND_DIR", str(frontend_dist))
+
+    from askmydocs.api.main import app
+
+    with TestClient(app) as test_client:
+        yield test_client
+
+
+HTML = {"accept": "text/html,application/xhtml+xml"}
+
+
+class TestFrontendServing:
+    def test_root_serves_the_app(self, app_client: TestClient) -> None:
+        response = app_client.get("/", headers=HTML)
+        assert response.status_code == 200
+        assert "id=root" in response.text
+
+    def test_built_assets_are_served_as_files(self, app_client: TestClient) -> None:
+        response = app_client.get("/assets/app.js")
+        assert response.status_code == 200
+        assert "javascript" in response.headers["content-type"]
+
+    def test_client_routes_fall_back_to_index_for_browsers(self, app_client: TestClient) -> None:
+        response = app_client.get("/some/client/route", headers=HTML)
+        assert response.status_code == 200
+        assert "id=root" in response.text
+
+    def test_unknown_api_paths_stay_json_404s(self, app_client: TestClient) -> None:
+        response = app_client.get("/library/nope", headers={"accept": "application/json"})
+        assert response.status_code == 404
+        assert response.headers["content-type"].startswith("application/json")
+
+    def test_api_routes_take_precedence(self, app_client: TestClient) -> None:
+        assert app_client.get("/healthz", headers=HTML).json()["status"] == "ok"
+        assert app_client.get("/library/documents", headers=HTML).json() == []
+
+    @pytest.mark.parametrize(
+        "path", ["/../secret.txt", "/%2e%2e/secret.txt", "/assets/../../secret.txt"]
+    )
+    def test_path_traversal_is_refused(self, app_client: TestClient, path: str) -> None:
+        response = app_client.get(path)
+        assert "do not serve" not in response.text
+
+    def test_without_a_build_the_root_is_404(self, client: TestClient) -> None:
+        assert client.get("/", headers=HTML).status_code == 404

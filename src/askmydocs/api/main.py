@@ -18,6 +18,11 @@ Upload library — user documents, in an index separate from the evaluated corpu
 ``POST   /library/documents``          upload one file (multipart ``file``) and index it
 ``DELETE /library/documents/{doc_id}`` remove a document and its file
 ``POST   /library/ask``                answer from the library, optionally from chosen documents
+``POST   /library/samples``            add the bundled sample documents
+``GET    /library/info``               active engine and upload limits, for a client to describe itself
+
+When ``api.frontend_dir`` holds a built React app, every other ``GET`` serves it,
+so the API and the UI deploy as one service.
 
 The pipeline is built once at startup and shared. It loads local models and opens
 a vector store, so building it per request would dominate latency.
@@ -29,14 +34,27 @@ import contextlib
 import logging
 import os
 from contextlib import asynccontextmanager
-from typing import Any
+from pathlib import Path
+from typing import Any, Literal
 
-from fastapi import Depends, FastAPI, File, Header, HTTPException, Response, UploadFile, status
+from fastapi import (
+    Depends,
+    FastAPI,
+    File,
+    Header,
+    HTTPException,
+    Request,
+    Response,
+    UploadFile,
+    status,
+)
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 from askmydocs import __version__
 from askmydocs.config import AppConfig, load_config
+from askmydocs.ingest.loaders import SUPPORTED_SUFFIXES
 from askmydocs.library import (
     DocumentLibrary,
     DocumentNotFound,
@@ -106,7 +124,8 @@ class AskResponse(BaseModel):
     grounding_score: float = 0.0
     model: str = ""
     prompt: str = ""
-    latency_ms: float = 0.0
+    latency_ms: float = Field(0.0, description="Generation only.")
+    total_ms: float = Field(0.0, description="The whole question, retrieval included.")
     input_tokens: int = 0
     output_tokens: int = 0
     retrieval: list[RetrievedOut] | None = None
@@ -117,6 +136,29 @@ class LibraryAskRequest(AskRequest):
         None,
         min_length=1,
         description="Answer only from these documents. Omit to search the whole library.",
+    )
+
+
+class LibraryInfo(BaseModel):
+    profile: str
+    embedder: str
+    reranker: str
+    generator: str
+    answer_mode: Literal["quote", "generate"] = Field(
+        ...,
+        description="quote: answers are sentences quoted from the documents. "
+        "generate: an LLM writes the answer from them.",
+    )
+    documents: int
+    max_upload_bytes: int
+    accepted_extensions: list[str]
+    samples_available: bool
+
+
+class SamplesResponse(BaseModel):
+    added: list[DocumentSummary]
+    rejected: dict[str, str] = Field(
+        default_factory=dict, description="Filename -> why it was not added."
     )
 
 
@@ -159,6 +201,7 @@ def _to_response(answer: Answer, include_retrieval: bool) -> AskResponse:
         model=answer.model,
         prompt=f"{answer.prompt_name}.{answer.prompt_version}",
         latency_ms=round(answer.latency_ms, 2),
+        total_ms=round(answer.total_ms, 2),
         input_tokens=answer.usage.input_tokens,
         output_tokens=answer.usage.output_tokens,
         retrieval=(
@@ -471,3 +514,67 @@ def ask_library(
             detail=f"Generation failed: {type(exc).__name__}",
         ) from exc
     return _to_response(answer, request.include_retrieval)
+
+
+@app.get("/library/info", response_model=LibraryInfo, tags=["library"])
+def library_info(library: DocumentLibrary = Depends(get_library)) -> LibraryInfo:
+    """The engine answering library questions, and what an upload may be."""
+    stats = library.pipeline.stats()
+    config = library.pipeline.config
+    return LibraryInfo(
+        profile=config.profile,
+        embedder=stats["embedder"],
+        reranker=stats["reranker"],
+        generator=stats["generator"],
+        answer_mode="quote" if config.generation.provider == "extractive" else "generate",
+        documents=len(library.documents()),
+        max_upload_bytes=library.max_bytes,
+        accepted_extensions=sorted(SUPPORTED_SUFFIXES),
+        samples_available=Path(config.corpus_dir).is_dir(),
+    )
+
+
+@app.post("/library/samples", response_model=SamplesResponse, tags=["library"])
+def add_samples(
+    library: DocumentLibrary = Depends(get_library),
+    _: None = Depends(require_api_key),
+) -> SamplesResponse:
+    """Add the bundled sample documents. Safe to repeat: unchanged files are no-ops."""
+    corpus = Path(library.pipeline.config.corpus_dir)
+    if not corpus.is_dir():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="No sample documents on this server."
+        )
+    added, rejected = library.add_directory(corpus)
+    return SamplesResponse(added=added, rejected=rejected)
+
+
+# ---------------------------------------------------------------------------
+# Frontend — registered last, so every API route above takes precedence
+# ---------------------------------------------------------------------------
+
+
+def _frontend_root() -> Path | None:
+    config = _state.get("config")
+    if config is None:
+        return None
+    root = Path(config.api.frontend_dir).resolve()
+    return root if (root / "index.html").is_file() else None
+
+
+@app.get("/{path:path}", include_in_schema=False)
+def frontend(path: str, request: Request) -> FileResponse:
+    """Serve the built React app: its files as-is, index.html for client routes.
+
+    The index.html fallback is only for browser navigations (``Accept: text/html``),
+    so a mistyped API path still gets a JSON 404 rather than a 200 HTML page.
+    """
+    root = _frontend_root()
+    if root is not None:
+        target = (root / path).resolve()
+        # resolve() collapses any "..", so this also rejects path traversal.
+        if path and target.is_file() and target.is_relative_to(root):
+            return FileResponse(target)
+        if "text/html" in request.headers.get("accept", ""):
+            return FileResponse(root / "index.html")
+    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not Found")

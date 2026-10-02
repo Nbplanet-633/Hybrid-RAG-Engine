@@ -203,6 +203,23 @@ class DocumentLibrary:
             self.pipeline.ingest_documents([document])
             return self.get(document.doc_id)
 
+    def add_directory(self, directory: str | Path) -> tuple[list[DocumentSummary], dict[str, str]]:
+        """Add every supported file in ``directory`` (not recursive).
+
+        Returns the added documents and ``{filename: reason}`` for any rejected,
+        so one bad file does not stop the rest. Used to load the sample corpus.
+        """
+        added: list[DocumentSummary] = []
+        rejected: dict[str, str] = {}
+        for path in sorted(Path(directory).iterdir()):
+            if not path.is_file() or path.suffix.lower() not in SUPPORTED_SUFFIXES:
+                continue
+            try:
+                added.append(self.add(path.name, path.read_bytes()))
+            except UploadError as exc:
+                rejected[path.name] = str(exc)
+        return added, rejected
+
     def delete(self, doc_id: str) -> None:
         """Remove a document and its file. Raises :class:`DocumentNotFound`."""
         with self._lock:

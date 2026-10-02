@@ -272,8 +272,11 @@ class RAGPipeline:
         """Answer a question, or abstain. Never returns an uncited claim."""
         if not question or not question.strip():
             raise ValueError("question must be a non-empty string")
+        started = time.perf_counter()
         retrieved = self.retrieve(question, top_n=top_n, doc_ids=doc_ids)
-        return self.answerer.answer(question.strip(), retrieved)
+        answer = self.answerer.answer(question.strip(), retrieved)
+        answer.total_ms = (time.perf_counter() - started) * 1000
+        return answer
 
     # ------------------------------------------------------------------
     # Documents

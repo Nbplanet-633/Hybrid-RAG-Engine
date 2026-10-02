@@ -118,7 +118,11 @@ class Answer(BaseModel):
     prompt_version: str = ""
     model: str = ""
     usage: TokenUsage = Field(default_factory=TokenUsage)
+    # Generation only: the answerer's own time, which is what the eval gates on.
     latency_ms: float = 0.0
+    # The whole question, retrieval and reranking included. Set by the pipeline;
+    # on a CPU the cross-encoder can make this ~40x latency_ms.
+    total_ms: float = 0.0
     created_at: datetime = Field(default_factory=_utcnow)
 
     def cited_chunk_ids(self) -> list[str]:

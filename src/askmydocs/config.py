@@ -139,6 +139,10 @@ class ApiConfig(BaseModel):
     cors_origins: list[str] = Field(default_factory=lambda: ["*"])
     # Optional shared secret; when set, /ask and /ingest require `X-API-Key`.
     api_key: str | None = None
+    # The built React app (`npm run build` in frontend/). Served at / when the
+    # directory exists, so the API and UI deploy as one service; absent, the API
+    # runs alone and the frontend uses the Vite dev server instead.
+    frontend_dir: str = "frontend/dist"
 
 
 class UploadsConfig(BaseModel):
@@ -248,6 +252,8 @@ def _env_overrides() -> dict[str, Any]:
         out.setdefault("generation", {})["model"] = v
     if v := os.getenv("ASKMYDOCS_API_KEY"):
         out.setdefault("api", {})["api_key"] = v
+    if v := os.getenv("ASKMYDOCS_FRONTEND_DIR"):
+        out.setdefault("api", {})["frontend_dir"] = v
     if v := os.getenv("PORT"):  # container platforms conventionally set PORT
         out.setdefault("api", {})["port"] = int(v)
     return out

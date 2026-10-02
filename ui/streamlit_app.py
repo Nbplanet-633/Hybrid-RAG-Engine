@@ -18,7 +18,6 @@ reason, not as an error.
 from __future__ import annotations
 
 import sys
-import time
 from pathlib import Path
 
 import streamlit as st
@@ -150,15 +149,11 @@ with st.sidebar:
         corpus = Path(library.pipeline.config.corpus_dir)
         if corpus.is_dir() and st.button("Try with sample documents"):
             with st.spinner("Loading the sample documents..."):
-                _add_files(
-                    library,
-                    [
-                        (path.name, path.read_bytes())
-                        for path in sorted(corpus.iterdir())
-                        if path.suffix.lower() in SUPPORTED_SUFFIXES
-                    ],
-                )
-            st.rerun()
+                _, rejected = library.add_directory(corpus)
+            for name, reason in rejected.items():
+                st.error(f"{name}: {reason}")
+            if not rejected:
+                st.rerun()
 
     st.divider()
     stats = library.pipeline.stats()
@@ -211,15 +206,11 @@ if not question:
     st.stop()
 
 with st.spinner("Retrieving and generating..."):
-    # Time the whole question. Answer.latency_ms covers only generation, which
-    # hides the cross-encoder: it is ~95% of a full-retrieval answer on a CPU.
-    started = time.perf_counter()
     answer = library.ask(
         question,
         doc_ids=None if scope == ALL_DOCUMENTS else [scope],
         top_n=top_n,
     )
-    elapsed_ms = (time.perf_counter() - started) * 1000
 
 if answer.abstained:
     st.warning(f"**No answer returned.**\n\n{answer.text}")
@@ -240,7 +231,9 @@ else:
     c.metric("Citations", len(answer.citations))
     d.metric(
         "Latency",
-        f"{elapsed_ms / 1000:.1f} s" if elapsed_ms >= 1000 else f"{elapsed_ms:.0f} ms",
+        f"{answer.total_ms / 1000:.1f} s"
+        if answer.total_ms >= 1000
+        else f"{answer.total_ms:.0f} ms",
         help="Search, reranking, and answer, end to end.",
     )
 

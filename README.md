@@ -500,6 +500,8 @@ make serve   # OpenAPI docs at http://localhost:8000/docs
 | `POST` | `/library/documents` | Upload one file (multipart `file`) and index it |
 | `DELETE` | `/library/documents/{doc_id}` | Remove a document and its file |
 | `POST` | `/library/ask` | Answer from uploads; `doc_ids` limits it to chosen documents |
+| `POST` | `/library/samples` | Add the bundled sample documents (repeatable) |
+| `GET` | `/library/info` | Active profile, models, answer mode (`quote`/`generate`), upload limits |
 
 ```bash
 curl -s localhost:8000/ask -H 'content-type: application/json' \
@@ -511,6 +513,13 @@ curl -s localhost:8000/library/documents -F file=@handbook.pdf | jq     # -> {"d
 curl -s localhost:8000/library/ask -H 'content-type: application/json' \
   -d '{"question":"What is the notice period?","doc_ids":["<doc_id>"]}' | jq
 ```
+
+Every answer carries two timings: `latency_ms` is generation alone, `total_ms` the whole
+question. They differ a lot on a CPU, where the cross-encoder dominates full retrieval.
+
+When `api.frontend_dir` (default `frontend/dist`) holds a built frontend, the API serves it at
+`/` as well, so one process serves both. API routes always win; browser navigations to any other
+path get `index.html` for client-side routing, while other clients still get a JSON 404.
 
 A rejected upload gets a specific status: `415` unsupported type, `413` over the size limit,
 `409` a second file claiming an existing `doc_id`, `422` no readable text.

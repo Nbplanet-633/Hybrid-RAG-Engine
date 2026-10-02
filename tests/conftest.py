@@ -57,8 +57,13 @@ SAMPLE_DOC = textwrap.dedent(
 
 @pytest.fixture(autouse=True)
 def _isolate_uploads(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Point the upload library at tmp_path, so no test touches ./storage/uploads."""
+    """Keep every test out of the real ./storage/uploads and ./frontend/dist.
+
+    Without the second, the suite would behave differently once the React app
+    has been built locally. Tests that need a frontend set their own.
+    """
     monkeypatch.setenv("ASKMYDOCS_UPLOADS_DIR", str(tmp_path / "uploads"))
+    monkeypatch.setenv("ASKMYDOCS_FRONTEND_DIR", str(tmp_path / "no-frontend"))
 
 
 @pytest.fixture
