@@ -33,3 +33,8 @@ eval_reports/*
 .idea/
 .vscode/
 .DS_Store
+
+# Playwright output
+test-results/
+playwright-report/
+blob-report/

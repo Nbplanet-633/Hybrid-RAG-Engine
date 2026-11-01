@@ -13,6 +13,8 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   test: {
     environment: "jsdom",
+    // Unit tests only; e2e/*.spec.ts belong to Playwright.
+    include: ["src/**/*.test.{ts,tsx}"],
     setupFiles: ["./src/test/setup.ts"],
   },
   server: {

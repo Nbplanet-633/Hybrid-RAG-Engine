@@ -187,6 +187,8 @@ make validate-golden   # check the dataset's own labels
 make ui                # build the React web app (needs Node.js)
 make serve             # API + web app on :8000, OpenAPI docs at /docs
 make lint              # ruff check + format check
+cd frontend && npm test       # frontend unit tests (Vitest)
+cd frontend && npm run e2e    # browser tests (Playwright) against a real server
 make ci                # lint → validate → test → eval, exactly as CI runs it
 make help              # every target
 ```
@@ -499,8 +501,29 @@ CI runs lint → golden validation → tests (Python 3.10/3.11/3.12 on Linux, pl
 Windows, where path handling differs) → the evaluation gate → a Docker build with smoke tests
 that index and answer inside the image and confirm one container serves both the web app and
 the library API. A frontend job runs ESLint, Prettier, the TypeScript check, the Vitest suite,
-and a production build. The evaluation job posts its report to the job summary and updates a
+and a production build, and an end-to-end job drives the built app in Chromium with Playwright. The evaluation job posts its report to the job summary and updates a
 single PR comment in place.
+
+---
+
+## End-to-end tests
+
+`npm run e2e` (in `frontend/`) builds the web app, starts two real `askmydocs serve`
+processes, and drives them in Chromium with Playwright: 18 tests covering uploads and rejected
+files, sample loading, deletion, cited answers, citation links, the full-passage view, the
+retrieval trace, refusals, per-document scoping, conversation history, the theme toggle, the
+phone layout, and the API-key flow (wrong key refused, key sent on every request, forgetting it
+locks the app).
+
+Each run gets fresh temporary storage, so it never touches your library, and every test starts
+from an empty library. The second server is started with `ASKMYDOCS_API_KEY`, so the key flow is
+tested against real enforcement rather than a mock. In CI, failures upload screenshots, videos,
+and step-by-step traces (`npx playwright show-trace <trace.zip>` replays one).
+
+To check the suite isn't vacuous, renaming the delete buttons' accessible label makes the three
+tests that use them fail, while the rest still pass.
+
+`npm run e2e:ui` opens Playwright's interactive runner for writing or debugging a test.
 
 ---
 
@@ -578,6 +601,7 @@ scripts/verify.py    one-command installation check
 eval/                metrics · runner + gate · label validator · Ragas cross-check
 tests/               325 tests
 frontend/            React + TypeScript web app (Vite, Tailwind, TanStack Query)
+frontend/e2e/        Playwright browser tests against a real API server
 ```
 
 ### Ingestion is incremental
