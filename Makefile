@@ -17,7 +17,7 @@ PROFILE ?= offline
 export ASKMYDOCS_PROFILE = $(PROFILE)
 
 .DEFAULT_GOAL := help
-.PHONY: help venv install install-full verify ingest ask serve ui stats prompts \
+.PHONY: help venv install install-full verify ingest ask serve ui api-types stats prompts \
         test test-cov lint format validate-golden eval eval-full eval-judge \
         ragas ci clean docker-build docker-run share
 
@@ -58,6 +58,10 @@ ask: ## Ask one question (make ask Q="How much is the dispute fee?")
 
 serve: ## Run the HTTP API on :8000
 	$(BIN)/askmydocs serve
+
+api-types: ## Regenerate frontend/openapi.json and the TypeScript types from the API
+	$(BIN)/python scripts/export_openapi.py
+	cd frontend && npm run api:types
 
 ui: ## Build the React web app; make serve then serves it at :8000
 	cd frontend && npm ci && npm run build

@@ -52,7 +52,7 @@ from fastapi import (
 )
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from askmydocs import __version__
 from askmydocs.config import AppConfig, load_config
@@ -86,6 +86,17 @@ _state: dict[str, Any] = {
 # ---------------------------------------------------------------------------
 
 
+class ResponseModel(BaseModel):
+    """Base for response bodies.
+
+    A response always carries every field, defaults included, so the OpenAPI
+    schema should mark them all required. Without this, the frontend's generated
+    types would claim fields like ``citations`` might be missing.
+    """
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+
 class AskRequest(BaseModel):
     question: str = Field(..., min_length=1, max_length=2000)
     top_n: int | None = Field(
@@ -96,7 +107,7 @@ class AskRequest(BaseModel):
     )
 
 
-class CitationOut(BaseModel):
+class CitationOut(ResponseModel):
     marker: str
     source: str
     section: str = ""
@@ -106,18 +117,18 @@ class CitationOut(BaseModel):
     chunk_id: str = ""
 
 
-class RetrievedOut(BaseModel):
+class RetrievedOut(ResponseModel):
     rank: int
     source: str
     section: str = ""
     chunk_id: str
     score: float
-    retriever: str
+    retriever: Literal["hybrid", "dense", "lexical"]
     dense_rank: int | None = None
     lexical_rank: int | None = None
 
 
-class AskResponse(BaseModel):
+class AskResponse(ResponseModel):
     question: str
     answer: str
     abstained: bool
@@ -142,7 +153,7 @@ class LibraryAskRequest(AskRequest):
     )
 
 
-class LibraryInfo(BaseModel):
+class LibraryInfo(ResponseModel):
     profile: str
     embedder: str
     reranker: str
@@ -161,7 +172,7 @@ class LibraryInfo(BaseModel):
     )
 
 
-class PassageOut(BaseModel):
+class PassageOut(ResponseModel):
     chunk_id: str
     doc_id: str
     source: str
@@ -170,7 +181,7 @@ class PassageOut(BaseModel):
     text: str
 
 
-class SamplesResponse(BaseModel):
+class SamplesResponse(ResponseModel):
     added: list[DocumentSummary]
     rejected: dict[str, str] = Field(
         default_factory=dict, description="Filename -> why it was not added."
@@ -184,7 +195,7 @@ class IngestRequest(BaseModel):
     reset: bool = Field(False, description="Drop the existing index first.")
 
 
-class IngestResponse(BaseModel):
+class IngestResponse(ResponseModel):
     documents: int
     chunks: int
     skipped_unchanged: int

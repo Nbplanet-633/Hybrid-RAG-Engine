@@ -131,7 +131,7 @@ gate — then prints a verdict:
   [ ok ] Answering works  cited 1 source(s), correct value returned
          Every formal dispute incurs a **€15.00 dispute fee**, charged when the dispute is opened. [S1]
   [ ok ] Refusing works  out-of-scope question abstained (low_relevance)
-  [ ok ] Test suite  325 passed in 28.44s
+  [ ok ] Test suite  328 passed in 29.49s
   [ ok ] Evaluation gate  12/12 thresholds met on 105 questions
 
   THE PROJECT IS WORKING ON THIS MACHINE.
@@ -181,7 +181,7 @@ make ask Q="Does Aurora support cryptocurrency payments?"
 ### Everything else
 
 ```bash
-make test              # 325 tests
+make test              # 328 tests
 make eval              # golden-set evaluation + threshold gate
 make validate-golden   # check the dataset's own labels
 make ui                # build the React web app (needs Node.js)
@@ -506,6 +506,27 @@ single PR comment in place.
 
 ---
 
+## One API contract, generated types
+
+The web app's TypeScript types are generated from the API, not written by hand:
+
+```bash
+make api-types   # python scripts/export_openapi.py  ->  frontend/openapi.json
+                 # npm run api:types (in frontend/)   ->  frontend/src/api/schema.gen.ts
+```
+
+Both files are committed, and two checks keep them honest. The Python suite fails when
+`openapi.json` no longer matches the Pydantic models, and the CI frontend job fails when the
+generated TypeScript no longer matches `openapi.json`. Renaming `total_ms` in the response model
+fails the first check, and after regenerating, the TypeScript build names the two places in the
+frontend still reading the old field.
+
+For the generated types to be exact, the schema has to be: response models mark every field
+required, since a response always includes them, while request models keep defaulted fields
+optional. `retriever` is a `Literal` of its three values rather than a free string.
+
+---
+
 ## End-to-end tests
 
 `npm run e2e` (in `frontend/`) builds the web app, starts two real `askmydocs serve`
@@ -599,7 +620,7 @@ data/
   golden/            105 validated question-answer pairs
 scripts/verify.py    one-command installation check
 eval/                metrics · runner + gate · label validator · Ragas cross-check
-tests/               325 tests
+tests/               328 tests
 frontend/            React + TypeScript web app (Vite, Tailwind, TanStack Query)
 frontend/e2e/        Playwright browser tests against a real API server
 ```

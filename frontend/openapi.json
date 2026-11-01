@@ -1,0 +1,1194 @@
+{
+  "components": {
+    "schemas": {
+      "AskRequest": {
+        "properties": {
+          "include_retrieval": {
+            "default": false,
+            "description": "Include the full retrieval trace in the response.",
+            "title": "Include Retrieval",
+            "type": "boolean"
+          },
+          "question": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Question",
+            "type": "string"
+          },
+          "top_n": {
+            "anyOf": [
+              {
+                "maximum": 20.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Override how many reranked passages to use.",
+            "title": "Top N"
+          }
+        },
+        "required": [
+          "question"
+        ],
+        "title": "AskRequest",
+        "type": "object"
+      },
+      "AskResponse": {
+        "properties": {
+          "abstain_reason": {
+            "default": "",
+            "title": "Abstain Reason",
+            "type": "string"
+          },
+          "abstained": {
+            "title": "Abstained",
+            "type": "boolean"
+          },
+          "answer": {
+            "title": "Answer",
+            "type": "string"
+          },
+          "citations": {
+            "items": {
+              "$ref": "#/components/schemas/CitationOut"
+            },
+            "title": "Citations",
+            "type": "array"
+          },
+          "confidence": {
+            "default": 0.0,
+            "title": "Confidence",
+            "type": "number"
+          },
+          "grounding_score": {
+            "default": 0.0,
+            "title": "Grounding Score",
+            "type": "number"
+          },
+          "input_tokens": {
+            "default": 0,
+            "title": "Input Tokens",
+            "type": "integer"
+          },
+          "latency_ms": {
+            "default": 0.0,
+            "description": "Generation only.",
+            "title": "Latency Ms",
+            "type": "number"
+          },
+          "model": {
+            "default": "",
+            "title": "Model",
+            "type": "string"
+          },
+          "output_tokens": {
+            "default": 0,
+            "title": "Output Tokens",
+            "type": "integer"
+          },
+          "prompt": {
+            "default": "",
+            "title": "Prompt",
+            "type": "string"
+          },
+          "question": {
+            "title": "Question",
+            "type": "string"
+          },
+          "retrieval": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/RetrievedOut"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Retrieval"
+          },
+          "total_ms": {
+            "default": 0.0,
+            "description": "The whole question, retrieval included.",
+            "title": "Total Ms",
+            "type": "number"
+          }
+        },
+        "required": [
+          "question",
+          "answer",
+          "abstained",
+          "abstain_reason",
+          "citations",
+          "confidence",
+          "grounding_score",
+          "model",
+          "prompt",
+          "latency_ms",
+          "total_ms",
+          "input_tokens",
+          "output_tokens",
+          "retrieval"
+        ],
+        "title": "AskResponse",
+        "type": "object"
+      },
+      "Body_upload_document_library_documents_post": {
+        "properties": {
+          "file": {
+            "contentMediaType": "application/octet-stream",
+            "description": "A PDF, Markdown, text, or HTML file.",
+            "title": "File",
+            "type": "string"
+          }
+        },
+        "required": [
+          "file"
+        ],
+        "title": "Body_upload_document_library_documents_post",
+        "type": "object"
+      },
+      "CitationOut": {
+        "properties": {
+          "chunk_id": {
+            "default": "",
+            "title": "Chunk Id",
+            "type": "string"
+          },
+          "marker": {
+            "title": "Marker",
+            "type": "string"
+          },
+          "quote": {
+            "default": "",
+            "title": "Quote",
+            "type": "string"
+          },
+          "score": {
+            "default": 0.0,
+            "title": "Score",
+            "type": "number"
+          },
+          "section": {
+            "default": "",
+            "title": "Section",
+            "type": "string"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "title": {
+            "default": "",
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "marker",
+          "source",
+          "section",
+          "title",
+          "quote",
+          "score",
+          "chunk_id"
+        ],
+        "title": "CitationOut",
+        "type": "object"
+      },
+      "DocumentSummary": {
+        "description": "One document in the upload library, as listed to a user.",
+        "properties": {
+          "chunks": {
+            "default": 0,
+            "title": "Chunks",
+            "type": "integer"
+          },
+          "content_type": {
+            "default": "",
+            "title": "Content Type",
+            "type": "string"
+          },
+          "doc_id": {
+            "title": "Doc Id",
+            "type": "string"
+          },
+          "filename": {
+            "title": "Filename",
+            "type": "string"
+          },
+          "size_bytes": {
+            "default": 0,
+            "title": "Size Bytes",
+            "type": "integer"
+          },
+          "title": {
+            "default": "",
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "doc_id",
+          "filename",
+          "title",
+          "content_type",
+          "chunks",
+          "size_bytes"
+        ],
+        "title": "DocumentSummary",
+        "type": "object"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "IngestRequest": {
+        "properties": {
+          "reset": {
+            "default": false,
+            "description": "Drop the existing index first.",
+            "title": "Reset",
+            "type": "boolean"
+          },
+          "targets": {
+            "description": "Paths or URLs. Empty means the configured corpus_dir.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Targets",
+            "type": "array"
+          }
+        },
+        "title": "IngestRequest",
+        "type": "object"
+      },
+      "IngestResponse": {
+        "properties": {
+          "chunks": {
+            "title": "Chunks",
+            "type": "integer"
+          },
+          "documents": {
+            "title": "Documents",
+            "type": "integer"
+          },
+          "duration_s": {
+            "title": "Duration S",
+            "type": "number"
+          },
+          "skipped_unchanged": {
+            "title": "Skipped Unchanged",
+            "type": "integer"
+          },
+          "sources": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Sources",
+            "type": "array"
+          },
+          "total_chunks": {
+            "title": "Total Chunks",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "documents",
+          "chunks",
+          "skipped_unchanged",
+          "total_chunks",
+          "duration_s",
+          "sources"
+        ],
+        "title": "IngestResponse",
+        "type": "object"
+      },
+      "LibraryAskRequest": {
+        "properties": {
+          "doc_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "minItems": 1,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Answer only from these documents. Omit to search the whole library.",
+            "title": "Doc Ids"
+          },
+          "include_retrieval": {
+            "default": false,
+            "description": "Include the full retrieval trace in the response.",
+            "title": "Include Retrieval",
+            "type": "boolean"
+          },
+          "question": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Question",
+            "type": "string"
+          },
+          "top_n": {
+            "anyOf": [
+              {
+                "maximum": 20.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Override how many reranked passages to use.",
+            "title": "Top N"
+          }
+        },
+        "required": [
+          "question"
+        ],
+        "title": "LibraryAskRequest",
+        "type": "object"
+      },
+      "LibraryInfo": {
+        "properties": {
+          "accepted_extensions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Accepted Extensions",
+            "type": "array"
+          },
+          "answer_mode": {
+            "description": "quote: answers are sentences quoted from the documents. generate: an LLM writes the answer from them.",
+            "enum": [
+              "quote",
+              "generate"
+            ],
+            "title": "Answer Mode",
+            "type": "string"
+          },
+          "documents": {
+            "title": "Documents",
+            "type": "integer"
+          },
+          "embedder": {
+            "title": "Embedder",
+            "type": "string"
+          },
+          "generator": {
+            "title": "Generator",
+            "type": "string"
+          },
+          "max_upload_bytes": {
+            "title": "Max Upload Bytes",
+            "type": "integer"
+          },
+          "profile": {
+            "title": "Profile",
+            "type": "string"
+          },
+          "requires_api_key": {
+            "default": false,
+            "description": "Whether library requests need an X-API-Key header.",
+            "title": "Requires Api Key",
+            "type": "boolean"
+          },
+          "reranker": {
+            "title": "Reranker",
+            "type": "string"
+          },
+          "samples_available": {
+            "title": "Samples Available",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "profile",
+          "embedder",
+          "reranker",
+          "generator",
+          "answer_mode",
+          "documents",
+          "max_upload_bytes",
+          "accepted_extensions",
+          "samples_available",
+          "requires_api_key"
+        ],
+        "title": "LibraryInfo",
+        "type": "object"
+      },
+      "PassageOut": {
+        "properties": {
+          "chunk_id": {
+            "title": "Chunk Id",
+            "type": "string"
+          },
+          "doc_id": {
+            "title": "Doc Id",
+            "type": "string"
+          },
+          "section": {
+            "default": "",
+            "title": "Section",
+            "type": "string"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          },
+          "title": {
+            "default": "",
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "chunk_id",
+          "doc_id",
+          "source",
+          "title",
+          "section",
+          "text"
+        ],
+        "title": "PassageOut",
+        "type": "object"
+      },
+      "RetrievedOut": {
+        "properties": {
+          "chunk_id": {
+            "title": "Chunk Id",
+            "type": "string"
+          },
+          "dense_rank": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dense Rank"
+          },
+          "lexical_rank": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lexical Rank"
+          },
+          "rank": {
+            "title": "Rank",
+            "type": "integer"
+          },
+          "retriever": {
+            "enum": [
+              "hybrid",
+              "dense",
+              "lexical"
+            ],
+            "title": "Retriever",
+            "type": "string"
+          },
+          "score": {
+            "title": "Score",
+            "type": "number"
+          },
+          "section": {
+            "default": "",
+            "title": "Section",
+            "type": "string"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "rank",
+          "source",
+          "section",
+          "chunk_id",
+          "score",
+          "retriever",
+          "dense_rank",
+          "lexical_rank"
+        ],
+        "title": "RetrievedOut",
+        "type": "object"
+      },
+      "SamplesResponse": {
+        "properties": {
+          "added": {
+            "items": {
+              "$ref": "#/components/schemas/DocumentSummary"
+            },
+            "title": "Added",
+            "type": "array"
+          },
+          "rejected": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Filename -> why it was not added.",
+            "title": "Rejected",
+            "type": "object"
+          }
+        },
+        "required": [
+          "added",
+          "rejected"
+        ],
+        "title": "SamplesResponse",
+        "type": "object"
+      },
+      "ValidationError": {
+        "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "description": "Domain-specific RAG with hybrid retrieval, cross-encoder reranking, and enforced citations. Answers are returned only when the retrieved evidence supports them; otherwise the API abstains and says why.",
+    "title": "Ask My Docs",
+    "version": "1.0.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/ask": {
+      "post": {
+        "description": "Answer a question from the indexed documents, or abstain.",
+        "operationId": "ask_ask_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AskRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AskResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Ask",
+        "tags": [
+          "query"
+        ]
+      }
+    },
+    "/healthz": {
+      "get": {
+        "description": "Liveness. Reports an initialisation failure rather than hiding it.",
+        "operationId": "healthz_healthz_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Healthz Healthz Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Healthz",
+        "tags": [
+          "ops"
+        ]
+      }
+    },
+    "/ingest": {
+      "post": {
+        "description": "Index documents from paths or URLs.",
+        "operationId": "ingest_ingest_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IngestRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IngestResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Ingest",
+        "tags": [
+          "index"
+        ]
+      }
+    },
+    "/library/ask": {
+      "post": {
+        "description": "Answer from uploaded documents, or abstain.",
+        "operationId": "ask_library_library_ask_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LibraryAskRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AskResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Ask Library",
+        "tags": [
+          "library"
+        ]
+      }
+    },
+    "/library/documents": {
+      "get": {
+        "description": "Every uploaded document. Keyed: filenames can be sensitive too.",
+        "operationId": "list_documents_library_documents_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/DocumentSummary"
+                  },
+                  "title": "Response List Documents Library Documents Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Documents",
+        "tags": [
+          "library"
+        ]
+      },
+      "post": {
+        "description": "Upload one file and index it. Re-uploading a filename replaces that document.",
+        "operationId": "upload_document_library_documents_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_document_library_documents_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentSummary"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Upload Document",
+        "tags": [
+          "library"
+        ]
+      }
+    },
+    "/library/documents/{doc_id}": {
+      "delete": {
+        "description": "Remove a document from the library and delete its file.",
+        "operationId": "delete_document_library_documents__doc_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "doc_id",
+            "required": true,
+            "schema": {
+              "title": "Doc Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Document",
+        "tags": [
+          "library"
+        ]
+      }
+    },
+    "/library/info": {
+      "get": {
+        "description": "The engine answering library questions, and what an upload may be.",
+        "operationId": "library_info_library_info_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibraryInfo"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Library Info",
+        "tags": [
+          "library"
+        ]
+      }
+    },
+    "/library/passages/{chunk_id}": {
+      "get": {
+        "description": "The full text of one passage, as cited by ``chunk_id`` in an answer.\n\nKeyed like /library/ask: chunk ids are predictable (``<doc_id>::0000``), so an\nopen endpoint would hand document text to anyone who knew a filename.",
+        "operationId": "get_passage_library_passages__chunk_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "chunk_id",
+            "required": true,
+            "schema": {
+              "title": "Chunk Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PassageOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Passage",
+        "tags": [
+          "library"
+        ]
+      }
+    },
+    "/library/samples": {
+      "post": {
+        "description": "Add the bundled sample documents. Safe to repeat: unchanged files are no-ops.",
+        "operationId": "add_samples_library_samples_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SamplesResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Add Samples",
+        "tags": [
+          "library"
+        ]
+      }
+    },
+    "/prompts": {
+      "get": {
+        "description": "The versioned prompt registry, and which version is active.",
+        "operationId": "prompts_prompts_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Prompts Prompts Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Prompts",
+        "tags": [
+          "ops"
+        ]
+      }
+    },
+    "/readyz": {
+      "get": {
+        "description": "Readiness. An empty index is not ready — it could only ever abstain.",
+        "operationId": "readyz_readyz_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Readyz Readyz Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Readyz",
+        "tags": [
+          "ops"
+        ]
+      }
+    },
+    "/stats": {
+      "get": {
+        "description": "Index and configuration state.",
+        "operationId": "stats_stats_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Stats Stats Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Stats",
+        "tags": [
+          "ops"
+        ]
+      }
+    }
+  }
+}

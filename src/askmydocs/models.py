@@ -11,7 +11,7 @@ import hashlib
 from datetime import datetime, timezone
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 def _utcnow() -> datetime:
@@ -131,6 +131,9 @@ class Answer(BaseModel):
 
 class DocumentSummary(BaseModel):
     """One document in the upload library, as listed to a user."""
+
+    # Returned as-is by the API: every field is always present (see ResponseModel).
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
     doc_id: str
     filename: str
