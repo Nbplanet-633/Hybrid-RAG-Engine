@@ -78,8 +78,9 @@ class RAGPipeline:
         # The lexical reranker needs corpus IDF statistics. Bind lazily through
         # `self.bm25` rather than the current object, because the index is
         # replaced (not mutated) on every ingest.
-        if hasattr(self.reranker, "set_idf_provider"):
-            self.reranker.set_idf_provider(lambda: self.bm25.idf_map(), lambda: self.bm25.max_idf())
+        set_idf = getattr(self.reranker, "set_idf_provider", None)
+        if set_idf is not None:
+            set_idf(lambda: self.bm25.idf_map(), lambda: self.bm25.max_idf())
         self.prompts = PromptLibrary(config.generation.prompts_dir)
         self.answerer = Answerer(
             llm=get_llm(config.generation),
@@ -109,6 +110,8 @@ class RAGPipeline:
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
         except json.JSONDecodeError:
+            return {"documents": {}}
+        if not isinstance(data, dict):
             return {"documents": {}}
         data.setdefault("documents", {})
         return data

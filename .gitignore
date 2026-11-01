@@ -38,3 +38,6 @@ eval_reports/*
 test-results/
 playwright-report/
 blob-report/
+
+# Frontend coverage report
+coverage/

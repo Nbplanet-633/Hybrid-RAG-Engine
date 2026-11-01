@@ -14,6 +14,7 @@ keyword and vector legs drifting out of sync.
 from __future__ import annotations
 
 from collections.abc import Iterable, Sequence, Set
+from typing import Any
 
 from askmydocs.models import Chunk
 from askmydocs.text import lexical_tokens
@@ -27,7 +28,8 @@ class BM25Index:
         self.b = b
         self._ids: list[str] = []
         self._corpus: list[list[str]] = []
-        self._bm25 = None
+        # rank_bm25 ships no type information, so the index object is Any.
+        self._bm25: Any | None = None
 
     # -- build -------------------------------------------------------------
 

@@ -105,6 +105,14 @@ class Prompt:
         return f"<Prompt {self.name}.{self.version} hash={self.content_hash}>"
 
 
+def _version_number(version: str) -> int:
+    """``v12`` -> 12. Versions are validated on load, so a miss is a bug."""
+    match = _VERSION_NUM_RE.search(version)
+    if match is None:
+        raise ValueError(f"Malformed prompt version {version!r}")
+    return int(match.group(1))
+
+
 class PromptLibrary:
     """Loads and resolves the versioned prompts in a directory."""
 
@@ -169,7 +177,7 @@ class PromptLibrary:
 
     def versions(self, name: str) -> list[str]:
         found = [v for (n, v) in self._prompts if n == name]
-        return sorted(found, key=lambda v: int(_VERSION_NUM_RE.search(v).group(1)))
+        return sorted(found, key=_version_number)
 
     def names(self) -> list[str]:
         return sorted({n for (n, _) in self._prompts})

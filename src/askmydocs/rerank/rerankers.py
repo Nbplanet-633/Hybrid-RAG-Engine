@@ -27,6 +27,7 @@ import os
 from collections.abc import Callable, Iterable
 from typing import Protocol, runtime_checkable
 
+from askmydocs.config import RerankConfig
 from askmydocs.models import RetrievedChunk
 from askmydocs.text import lexical_tokens, normalize
 
@@ -218,7 +219,7 @@ class CohereReranker:
         return out
 
 
-def get_reranker(config) -> Reranker:
+def get_reranker(config: RerankConfig) -> Reranker:
     """Construct the reranker described by a :class:`RerankConfig`."""
     if config.provider == "lexical":
         return LexicalReranker()

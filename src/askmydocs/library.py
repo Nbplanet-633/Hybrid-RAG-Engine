@@ -34,6 +34,7 @@ import tempfile
 import threading
 from collections.abc import Iterable
 from pathlib import Path
+from typing import Any
 
 from askmydocs.config import AppConfig
 from askmydocs.ingest.loaders import SUPPORTED_SUFFIXES, load_file
@@ -300,7 +301,7 @@ class DocumentLibrary:
                 f"{document.doc_id!r}. Remove it first, or change the doc_id frontmatter."
             )
 
-    def _summary(self, doc_id: str, record: dict) -> DocumentSummary:
+    def _summary(self, doc_id: str, record: dict[str, Any]) -> DocumentSummary:
         path = Path(record["source"])
         return DocumentSummary(
             doc_id=doc_id,

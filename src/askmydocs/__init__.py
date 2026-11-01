@@ -9,6 +9,8 @@ Public surface:
     answer = pipeline.answer("How long do I have to respond to a dispute?")
 """
 
+from typing import Any
+
 from askmydocs.config import AppConfig, load_config
 from askmydocs.models import Answer, Chunk, Citation, Document, RetrievedChunk
 
@@ -27,7 +29,7 @@ __all__ = [
 ]
 
 
-def __getattr__(name: str):  # pragma: no cover - thin lazy-import shim
+def __getattr__(name: str) -> Any:  # pragma: no cover - thin lazy-import shim
     # RAGPipeline pulls in the retrieval/generation stack; import it lazily so that
     # `import askmydocs` stays cheap for callers that only need the data models.
     if name == "RAGPipeline":

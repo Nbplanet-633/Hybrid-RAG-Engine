@@ -30,6 +30,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Any, Protocol, runtime_checkable
 
+from askmydocs.config import GenerationConfig
 from askmydocs.text import lexical_tokens, split_sentences, topical_tokens
 
 
@@ -249,7 +250,7 @@ class ExtractiveLLM:
         # Very short fragments are rarely self-contained answers.
         if len(tokens) < 4:
             score *= 0.5
-        return score
+        return float(score)
 
     # -- generation --------------------------------------------------------
 
@@ -343,7 +344,7 @@ class ExtractiveLLM:
         )
 
 
-def get_llm(config) -> LLM:
+def get_llm(config: GenerationConfig) -> LLM:
     """Construct the LLM described by a :class:`GenerationConfig`."""
     if config.provider == "extractive":
         return ExtractiveLLM(model=config.model)

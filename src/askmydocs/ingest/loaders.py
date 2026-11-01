@@ -101,12 +101,12 @@ def _load_pdf(path: Path, source: str | None = None) -> Document:
             # provenance in each chunk's section breadcrumb.
             pages.append(f"## Page {number}\n\n{content}")
 
-    info = reader.metadata or {}
+    metadata = reader.metadata
     source = source or path.as_posix()
     return Document(
         doc_id=_doc_id(source),
         source=source,
-        title=str(info.get("/Title") or path.stem),
+        title=str((metadata.get("/Title") if metadata is not None else None) or path.stem),
         text="\n\n".join(pages),
         content_type="pdf",
         metadata={"pages": len(reader.pages)},

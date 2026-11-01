@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import hashlib
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -81,7 +81,9 @@ class RetrievedChunk(BaseModel):
     rerank_score: float | None = None
     dense_rank: int | None = None
     lexical_rank: int | None = None
-    retriever: str = Field("hybrid", description="Which retriever surfaced this chunk.")
+    retriever: Literal["hybrid", "dense", "lexical"] = Field(
+        "hybrid", description="Which retriever surfaced this chunk."
+    )
 
 
 class Citation(BaseModel):

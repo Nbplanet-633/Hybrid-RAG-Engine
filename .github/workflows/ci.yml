@@ -20,7 +20,7 @@ env:
 
 jobs:
   quality:
-    name: Lint and type sanity
+    name: Lint and type check
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -34,6 +34,9 @@ jobs:
         run: ruff check src eval tests
       - name: Ruff format check
         run: ruff format --check src eval tests
+      # Strict mode; settings in pyproject.toml [tool.mypy].
+      - name: mypy (strict)
+        run: mypy
 
   test:
     name: Tests (${{ matrix.os }}, py${{ matrix.python-version }})
@@ -56,7 +59,8 @@ jobs:
           cache: pip
           cache-dependency-path: pyproject.toml
       - run: pip install -e ".[loaders,chroma,dev]"
-      - name: Run the test suite
+      # Fails below fail_under in pyproject.toml [tool.coverage.report].
+      - name: Run the test suite with coverage
         run: pytest --cov=src/askmydocs --cov-report=xml --cov-report=term
       - name: Upload coverage
         if: matrix.python-version == '3.12' && matrix.os == 'ubuntu-latest'
@@ -94,8 +98,9 @@ jobs:
         run: npm run format:check
       - name: Type check
         run: npm run typecheck
-      - name: Tests
-        run: npm test
+      # Fails below the floors in vite.config.ts (test.coverage.thresholds).
+      - name: Tests with coverage
+        run: npm run test:coverage
       - name: Build
         run: npm run build
 

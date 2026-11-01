@@ -22,15 +22,18 @@ from typing import Protocol, runtime_checkable
 
 import numpy as np
 
+from askmydocs.config import VectorStoreConfig
+from askmydocs.index.embeddings import Vector
+
 # A (chunk_id, score) pair.
 ScoredId = tuple[str, float]
 
 
 @runtime_checkable
 class VectorStore(Protocol):
-    def upsert(self, ids: list[str], vectors: np.ndarray) -> None: ...
+    def upsert(self, ids: list[str], vectors: Vector) -> None: ...
 
-    def query(self, vector: np.ndarray, k: int) -> list[ScoredId]: ...
+    def query(self, vector: Vector, k: int) -> list[ScoredId]: ...
 
     def delete(self, ids: Iterable[str]) -> None: ...
 
@@ -51,7 +54,7 @@ class NumpyVectorStore:
         self.collection = collection
         self._ids: list[str] = []
         self._index: dict[str, int] = {}
-        self._matrix: np.ndarray | None = None
+        self._matrix: Vector | None = None
         self._load()
 
     # -- paths -------------------------------------------------------------
@@ -86,7 +89,7 @@ class NumpyVectorStore:
 
     # -- mutation ----------------------------------------------------------
 
-    def upsert(self, ids: list[str], vectors: np.ndarray) -> None:
+    def upsert(self, ids: list[str], vectors: Vector) -> None:
         if len(ids) != len(vectors):
             raise ValueError("ids and vectors must be the same length")
         if not ids:
@@ -104,10 +107,11 @@ class NumpyVectorStore:
             )
 
         new_ids: list[str] = []
-        new_rows: list[np.ndarray] = []
+        new_rows: list[Vector] = []
         for chunk_id, row in zip(ids, vectors, strict=True):
             existing = self._index.get(chunk_id)
             if existing is not None:
+                assert self._matrix is not None  # an indexed id always has a row
                 self._matrix[existing] = row
             else:
                 new_ids.append(chunk_id)
@@ -143,14 +147,14 @@ class NumpyVectorStore:
 
     # -- search ------------------------------------------------------------
 
-    def query(self, vector: np.ndarray, k: int) -> list[ScoredId]:
+    def query(self, vector: Vector, k: int) -> list[ScoredId]:
         if self._matrix is None or not self._matrix.size:
             return []
-        query = np.asarray(vector, dtype=np.float32).reshape(-1)
+        query: Vector = np.asarray(vector, dtype=np.float32).reshape(-1)
         norm = float(np.linalg.norm(query))
         if norm == 0:
             return []
-        query = query / norm
+        query = (query / norm).astype(np.float32, copy=False)
 
         # Rows are stored L2-normalised by the embedder, but normalise defensively
         # so a store built with normalize=false still yields true cosine scores.
@@ -194,7 +198,7 @@ class ChromaVectorStore:
             metadata={"hnsw:space": "cosine"},
         )
 
-    def upsert(self, ids: list[str], vectors: np.ndarray) -> None:
+    def upsert(self, ids: list[str], vectors: Vector) -> None:
         if not ids:
             return
         self._collection.upsert(
@@ -202,12 +206,12 @@ class ChromaVectorStore:
             embeddings=[row.tolist() for row in np.asarray(vectors, dtype=np.float32)],
         )
 
-    def query(self, vector: np.ndarray, k: int) -> list[ScoredId]:
+    def query(self, vector: Vector, k: int) -> list[ScoredId]:
         total = self.count()
         if total == 0:
             return []
         result = self._collection.query(
-            query_embeddings=[np.asarray(vector, dtype=np.float32).reshape(-1).tolist()],
+            query_embeddings=np.asarray(vector, dtype=np.float32).reshape(1, -1),
             n_results=min(k, total),
             include=["distances"],
         )
@@ -236,7 +240,7 @@ class ChromaVectorStore:
         return None
 
 
-def get_vector_store(config, path: str | Path) -> VectorStore:
+def get_vector_store(config: VectorStoreConfig, path: str | Path) -> VectorStore:
     """Construct the vector store described by a :class:`VectorStoreConfig`."""
     if config.provider == "numpy":
         return NumpyVectorStore(path=path, collection=config.collection)

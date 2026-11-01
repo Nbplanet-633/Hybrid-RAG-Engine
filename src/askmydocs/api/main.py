@@ -35,7 +35,9 @@ import contextlib
 import hmac
 import logging
 import os
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from dataclasses import dataclass, fields
 from pathlib import Path
 from typing import Any, Literal
 
@@ -71,14 +73,23 @@ from askmydocs.pipeline import RAGPipeline
 
 logger = logging.getLogger("askmydocs.api")
 
-# Module-level state, populated by the lifespan handler.
-_state: dict[str, Any] = {
-    "pipeline": None,
-    "config": None,
-    "error": None,
-    "library": None,
-    "library_error": None,
-}
+
+@dataclass
+class _AppState:
+    """What the lifespan handler builds at startup, shared by every request.
+
+    Typed rather than a dict, so a misspelt key is a type error, not a KeyError
+    on the first request that happens to touch it.
+    """
+
+    config: AppConfig | None = None
+    pipeline: RAGPipeline | None = None
+    error: str | None = None
+    library: DocumentLibrary | None = None
+    library_error: str | None = None
+
+
+_state = _AppState()
 
 
 # ---------------------------------------------------------------------------
@@ -256,32 +267,35 @@ def _to_response(answer: Answer, include_retrieval: bool) -> AskResponse:
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Build the pipeline once, at startup."""
     try:
         config = load_config()
-        _state["config"] = config
-        _state["pipeline"] = RAGPipeline.from_config(config)
+        _state.config = config
+        pipeline = RAGPipeline.from_config(config)
+        _state.pipeline = pipeline
         logger.info(
             "pipeline ready: profile=%s chunks=%d generator=%s",
             config.profile,
-            len(_state["pipeline"].chunk_store),
+            len(pipeline.chunk_store),
             config.generation.provider,
         )
     except Exception as exc:  # noqa: BLE001
         # Start anyway so /healthz can report the failure. Crash-looping a
         # container hides the reason from anyone reading the logs.
-        _state["error"] = f"{type(exc).__name__}: {exc}"
+        _state.error = f"{type(exc).__name__}: {exc}"
         logger.exception("pipeline failed to initialise")
     # Built separately so a broken upload library cannot take /ask down, and
     # vice versa.
     try:
-        _state["library"] = DocumentLibrary(_state.get("config") or load_config())
+        _state.library = DocumentLibrary(_state.config or load_config())
     except Exception as exc:  # noqa: BLE001
-        _state["library_error"] = f"{type(exc).__name__}: {exc}"
+        _state.library_error = f"{type(exc).__name__}: {exc}"
         logger.exception("upload library failed to initialise")
     yield
-    _state.clear()
+    # Fresh state for the next startup (tests start the app many times).
+    for field in fields(_state):
+        setattr(_state, field.name, None)
 
 
 app = FastAPI(
@@ -297,12 +311,12 @@ app = FastAPI(
 
 
 def get_pipeline() -> RAGPipeline:
-    if _state.get("error"):
+    if _state.error:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=f"Pipeline unavailable: {_state['error']}",
+            detail=f"Pipeline unavailable: {_state.error}",
         )
-    pipeline = _state.get("pipeline")
+    pipeline = _state.pipeline
     if pipeline is None:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Pipeline not initialised"
@@ -311,12 +325,12 @@ def get_pipeline() -> RAGPipeline:
 
 
 def get_library() -> DocumentLibrary:
-    if _state.get("library_error"):
+    if _state.library_error:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=f"Upload library unavailable: {_state['library_error']}",
+            detail=f"Upload library unavailable: {_state.library_error}",
         )
-    library = _state.get("library")
+    library = _state.library
     if library is None:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Upload library not initialised"
@@ -325,15 +339,15 @@ def get_library() -> DocumentLibrary:
 
 
 def get_config() -> AppConfig:
-    config = _state.get("config")
+    config = _state.config
     if config is None:
         raise HTTPException(status_code=503, detail="Configuration not loaded")
     return config
 
 
 def _expected_api_key() -> str | None:
-    config = _state.get("config")
-    return getattr(getattr(config, "api", None), "api_key", None) or os.getenv("ASKMYDOCS_API_KEY")
+    configured = _state.config.api.api_key if _state.config else None
+    return configured or os.getenv("ASKMYDOCS_API_KEY")
 
 
 def require_api_key(x_api_key: str | None = Header(None)) -> None:
@@ -370,8 +384,8 @@ app.add_middleware(
 @app.get("/healthz", tags=["ops"])
 def healthz() -> dict[str, Any]:
     """Liveness. Reports an initialisation failure rather than hiding it."""
-    if _state.get("error"):
-        return {"status": "error", "detail": _state["error"], "version": __version__}
+    if _state.error:
+        return {"status": "error", "detail": _state.error, "version": __version__}
     return {"status": "ok", "version": __version__}
 
 
@@ -615,7 +629,7 @@ def add_samples(
 
 
 def _frontend_root() -> Path | None:
-    config = _state.get("config")
+    config = _state.config
     if config is None:
         return None
     root = Path(config.api.frontend_dir).resolve()

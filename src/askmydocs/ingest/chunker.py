@@ -168,8 +168,9 @@ def parse_units(document: Document) -> list[_Unit]:
             continue
 
         # --- fenced code block (kept whole) ---------------------------------
-        if _FENCE_RE.match(line):
-            fence = _FENCE_RE.match(line).group(1)
+        fence_match = _FENCE_RE.match(line)
+        if fence_match:
+            fence = fence_match.group(1)
             block_lines = [line]
             offset += len(line)
             index += 1

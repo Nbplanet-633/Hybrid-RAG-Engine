@@ -15,6 +15,14 @@ export default defineConfig({
     environment: "jsdom",
     // Unit tests only; e2e/*.spec.ts belong to Playwright.
     include: ["src/**/*.test.{ts,tsx}"],
+    coverage: {
+      provider: "v8",
+      include: ["src/**"],
+      exclude: ["src/**/*.test.*", "src/test/**", "src/api/schema.gen.ts", "src/main.tsx"],
+      // Measured at 92% statements, 81% branches, 89% functions, 94% lines.
+      // Floors sit a little below; raise them as coverage rises.
+      thresholds: { statements: 88, branches: 75, functions: 85, lines: 90 },
+    },
     setupFiles: ["./src/test/setup.ts"],
   },
   server: {

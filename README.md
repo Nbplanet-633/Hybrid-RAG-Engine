@@ -1,5 +1,7 @@
 # Ask My Docs
 
+[![CI](https://github.com/Nbplanet-633/Hybrid-RAG-Engine/actions/workflows/ci.yml/badge.svg)](https://github.com/Nbplanet-633/Hybrid-RAG-Engine/actions/workflows/ci.yml)
+
 A domain-specific Retrieval-Augmented Generation system that **refuses to answer when the
 evidence does not support one**.
 
@@ -131,7 +133,7 @@ gate — then prints a verdict:
   [ ok ] Answering works  cited 1 source(s), correct value returned
          Every formal dispute incurs a **€15.00 dispute fee**, charged when the dispute is opened. [S1]
   [ ok ] Refusing works  out-of-scope question abstained (low_relevance)
-  [ ok ] Test suite  328 passed in 29.49s
+  [ ok ] Test suite  361 passed in 10.33s
   [ ok ] Evaluation gate  12/12 thresholds met on 105 questions
 
   THE PROJECT IS WORKING ON THIS MACHINE.
@@ -181,7 +183,7 @@ make ask Q="Does Aurora support cryptocurrency payments?"
 ### Everything else
 
 ```bash
-make test              # 328 tests
+make test              # 361 tests
 make eval              # golden-set evaluation + threshold gate
 make validate-golden   # check the dataset's own labels
 make ui                # build the React web app (needs Node.js)
@@ -506,6 +508,48 @@ single PR comment in place.
 
 ---
 
+## Quality gates
+
+Every push runs these in GitHub Actions; any one failing fails the build.
+
+| Gate | Tool | Bar |
+|---|---|---|
+| Python lint and format | ruff | no findings |
+| Python types | mypy `--strict` over `src/` and `scripts/` | no errors |
+| Python tests | pytest: 361 tests, Linux 3.10/3.11/3.12 and Windows 3.12 | all pass, **≥ 90% line + branch coverage** (measured 93%) |
+| Frontend lint, format, types | ESLint, Prettier, `tsc` | no findings |
+| Frontend unit tests | Vitest + Testing Library: 41 tests | all pass, **≥ 90% lines, 75% branches** (measured 94% / 81%) |
+| API contract | `openapi.json` and generated TypeScript | both up to date with the code |
+| Browser tests | Playwright: 18 tests against real servers | all pass |
+| Retrieval quality | 105-question golden set | every threshold in `eval/thresholds.yaml` |
+| Container | Docker build + smoke tests | indexes, answers, serves the web app |
+
+The coverage floors sit a few points under the measured numbers, so a refactor can shift a
+point without breaking the build while untested new code cannot slip in. They only go up.
+
+Getting mypy to pass strict mode was a real refactor rather than annotations alone. The API's
+shared state became a typed dataclass instead of `dict[str, Any]`, so a misspelt key is a type
+error rather than a `KeyError` on whichever request first touches it. Vectors got one
+`NDArray[np.float32]` alias across the embedders and stores. `retriever` became a `Literal` of
+its three values end to end, and possibly-`None` regex matches are now handled where they
+occur. Optional SDKs (sentence-transformers, anthropic, cohere) are skipped by mypy, so the
+result doesn't depend on which extras are installed.
+
+Raising coverage from 87% to 93% exposed real gaps: the Chroma vector store, which the
+model-backed profiles use, had no tests at all. Neither did PDF, HTML, and URL loading, or the
+Claude, Cohere, and sentence-transformers adapters. The adapters are now tested against small
+fake SDK modules: request construction, refusal handling, the missing-credentials message,
+score ordering, and both sentence-transformers dimension APIs. The PDF tests build a valid
+multi-page PDF in code, so no binary fixture is needed.
+
+```bash
+make typecheck                       # mypy --strict
+make test-cov                        # pytest with the coverage floor
+cd frontend && npm run test:coverage # Vitest with its coverage floors
+```
+
+---
+
 ## One API contract, generated types
 
 The web app's TypeScript types are generated from the API, not written by hand:
@@ -620,7 +664,7 @@ data/
   golden/            105 validated question-answer pairs
 scripts/verify.py    one-command installation check
 eval/                metrics · runner + gate · label validator · Ragas cross-check
-tests/               328 tests
+tests/               361 tests
 frontend/            React + TypeScript web app (Vite, Tailwind, TanStack Query)
 frontend/e2e/        Playwright browser tests against a real API server
 ```

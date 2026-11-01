@@ -24,8 +24,14 @@ from collections.abc import Iterable
 from typing import Protocol, runtime_checkable
 
 import numpy as np
+import numpy.typing as npt
 
+from askmydocs.config import EmbeddingConfig
 from askmydocs.text import normalize, tokenize
+
+# One float32 vector, or a matrix of them (one row per text). numpy's types do
+# not track shape, so a single alias serves both.
+Vector = npt.NDArray[np.float32]
 
 
 @runtime_checkable
@@ -39,15 +45,15 @@ class Embedder(Protocol):
         """Stable identity of this embedder — provider, model, and dimension."""
         ...
 
-    def embed_documents(self, texts: Iterable[str]) -> np.ndarray: ...
+    def embed_documents(self, texts: Iterable[str]) -> Vector: ...
 
-    def embed_query(self, text: str) -> np.ndarray: ...
+    def embed_query(self, text: str) -> Vector: ...
 
 
-def _l2_normalize(matrix: np.ndarray) -> np.ndarray:
+def _l2_normalize(matrix: Vector) -> Vector:
     norms = np.linalg.norm(matrix, axis=1, keepdims=True)
     norms[norms == 0] = 1.0
-    return matrix / norms
+    return np.asarray(matrix / norms, dtype=np.float32)
 
 
 class HashingEmbedder:
@@ -87,7 +93,7 @@ class HashingEmbedder:
         value = int.from_bytes(digest, "big")
         return value % self.dimension, 1.0 if (value >> 63) & 1 else -1.0
 
-    def _vector(self, text: str) -> np.ndarray:
+    def _vector(self, text: str) -> Vector:
         vector = np.zeros(self.dimension, dtype=np.float32)
         words = tokenize(text)
         if not words:
@@ -121,15 +127,15 @@ class HashingEmbedder:
 
     # -- Embedder protocol -------------------------------------------------
 
-    def embed_documents(self, texts: Iterable[str]) -> np.ndarray:
+    def embed_documents(self, texts: Iterable[str]) -> Vector:
         rows = [self._vector(text) for text in texts]
         if not rows:
             return np.zeros((0, self.dimension), dtype=np.float32)
         matrix = np.vstack(rows)
         return _l2_normalize(matrix) if self.normalize_vectors else matrix
 
-    def embed_query(self, text: str) -> np.ndarray:
-        return self.embed_documents([text])[0]
+    def embed_query(self, text: str) -> Vector:
+        return np.asarray(self.embed_documents([text])[0], dtype=np.float32)
 
 
 class SentenceTransformerEmbedder:
@@ -164,13 +170,16 @@ class SentenceTransformerEmbedder:
             getattr(self._encoder, "get_embedding_dimension", None)
             or self._encoder.get_sentence_embedding_dimension
         )
-        self.dimension = int(read_dimension())
+        dimension = read_dimension()
+        if dimension is None:
+            raise RuntimeError(f"{model} does not report an embedding dimension")
+        self.dimension = int(dimension)
 
     @property
     def fingerprint(self) -> str:
         return f"{self.provider}:{self.model}:{self.dimension}"
 
-    def embed_documents(self, texts: Iterable[str]) -> np.ndarray:
+    def embed_documents(self, texts: Iterable[str]) -> Vector:
         items = list(texts)
         if not items:
             return np.zeros((0, self.dimension), dtype=np.float32)
@@ -183,11 +192,11 @@ class SentenceTransformerEmbedder:
         )
         return np.asarray(vectors, dtype=np.float32)
 
-    def embed_query(self, text: str) -> np.ndarray:
-        return self.embed_documents([text])[0]
+    def embed_query(self, text: str) -> Vector:
+        return np.asarray(self.embed_documents([text])[0], dtype=np.float32)
 
 
-def get_embedder(config) -> Embedder:
+def get_embedder(config: EmbeddingConfig) -> Embedder:
     """Construct the embedder described by an :class:`EmbeddingConfig`."""
     if config.provider == "hashing":
         return HashingEmbedder(dimension=config.dimension, normalize_vectors=config.normalize)

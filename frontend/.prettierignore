@@ -4,3 +4,4 @@ package-lock.json
 # Generated: see src/api/types.ts
 src/api/schema.gen.ts
 openapi.json
+coverage

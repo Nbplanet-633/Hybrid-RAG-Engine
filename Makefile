@@ -17,7 +17,7 @@ PROFILE ?= offline
 export ASKMYDOCS_PROFILE = $(PROFILE)
 
 .DEFAULT_GOAL := help
-.PHONY: help venv install install-full verify ingest ask serve ui api-types stats prompts \
+.PHONY: help venv install install-full verify ingest ask serve ui api-types typecheck stats prompts \
         test test-cov lint format validate-golden eval eval-full eval-judge \
         ragas ci clean docker-build docker-run share
 
@@ -80,6 +80,9 @@ test: ## Run the test suite
 test-cov: ## Run the tests with a coverage report
 	$(BIN)/python -m pytest --cov=src/askmydocs --cov-report=term-missing --cov-report=xml
 
+typecheck: ## Strict mypy over src/ and scripts/
+	$(BIN)/python -m mypy
+
 lint: ## Lint and check formatting
 	$(BIN)/ruff check src eval tests
 	$(BIN)/ruff format --check src eval tests
@@ -105,7 +108,7 @@ eval-judge: ## Evaluate with LLM-as-judge faithfulness (needs ANTHROPIC_API_KEY)
 ragas: ## Cross-check with Ragas (slow, needs an API key)
 	$(BIN)/python -m eval.ragas_eval --profile $(PROFILE) --limit 25
 
-ci: lint validate-golden test eval ## Everything CI runs, in order
+ci: lint typecheck validate-golden test-cov eval ## Everything CI runs, in order
 
 # --- docker -----------------------------------------------------------------
 
